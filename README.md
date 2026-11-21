@@ -107,7 +107,7 @@ node server.js
 
 启动后监听 `127.0.0.1:8898`，暴露 REST API（`/recall`、`/remember`、`/state`、`/graph` 等）和 SSE 实时推流。任何语言（Python / JS / 其他）都能用 `requests` / `fetch` 调用。
 
-### 3. 作为 MCP Server（接入 Claude / Cursor / Windsurf）
+### 3. 作为 MCP Server（接入 Claude / Cursor / ChatGPT / Grok / Gemini 等）
 
 ```json
 {
@@ -120,7 +120,7 @@ node server.js
 }
 ```
 
-一键接入任何 MCP 客户端，让 Claude / Cursor 等 AI 直接读写你的记忆。**当前为纯本地版**（零依赖、零花费），Hindsight 语义增强版后续跟进。详见 [docs/MCP.md](docs/MCP.md)。
+写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——它们都能直接读写你的记忆。**当前为纯本地版**（零依赖、零花费），Hindsight 语义增强版后续跟进。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
 
 ### 4. 作为 DSH 插件（可视化面板）
 
