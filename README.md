@@ -7,6 +7,10 @@
 [![license](https://img.shields.io/badge/license-MIT-green)](#license)
 [![zero-dependency](https://img.shields.io/badge/dependencies-0-blue)](#)
 
+> **🚀 小白想直接用？看 [快速上手（保姆级教程）](docs/快速上手.md)** —— 不写代码，跟着做就能用上。
+>
+> **🖥 你在用 DeepSeek Harness（DSH）？直接把本仓库地址发给 DSH，让它帮你装**（见 [安装到 DSH](#安装到-dsh)）。
+
 <!-- 这里放一张记忆星云面板的截图或 GIF（见下方「截图」小节） -->
 <!-- ![Nebula Memory 面板](docs/screenshot.gif) -->
 
@@ -191,14 +195,32 @@ Nebula Memory 有两档能力：
 
 ## 安装到 DSH
 
-（保留给 DSH 用户 —— 详细步骤见原文档，或 `install.ps1`）
+如果你在用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以安装这个插件，获得完整的「记忆星云」可视化面板。
+
+### 最省事的方式：让 DSH 帮你装
+
+**直接把本仓库地址发给 DSH，对它说：**
+
+> 帮我安装这个插件：https://github.com/yb-zhai/agent-memory
+
+DSH 会自己 clone 仓库、运行 `install.ps1`、装好并告诉你结果。
+
+### 手动安装（如果你更想自己来）
 
 ```powershell
-# 解压发行包后，在插件目录执行
-powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
+# 1. 下载仓库
+git clone https://github.com/yb-zhai/agent-memory.git
+cd agent-memory
+
+# 2. 运行安装脚本
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装器提供**事务式升级**：升级前备份记忆 + SHA-256 校验，失败自动回滚，不丢数据。
+安装器会**自动完成**：备份旧版本 → 替换代码 → 健康检查 → 失败自动回滚。**不丢记忆数据。**
+
+装完后，在 DSH 左侧栏「更多」里打开「记忆星云」即可看到面板。
+
+> 前置：需要已安装 Node.js（DSH 通常自带）；安装器会读 `%DSH_HOME%` 定位到你的 DSH 环境。
 
 ---
 
