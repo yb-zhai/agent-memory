@@ -1,0 +1,39 @@
+# ── 密钥与本地配置（绝不提交）──
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ── 本地记忆数据（含个人记忆内容，绝不提交）──
+memory-nebula-data/
+backups/
+*.jsonl
+index.json
+trace.jsonl
+
+# ── 运行日志与状态 ──
+*.log
+worker-window.json
+cost-guard.state.json
+
+# ── 依赖与构建产物 ──
+node_modules/
+dist/
+build/
+*.zip
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 临时文件 ──
+*.tmp
+*.bak
+/_*
+
+# timestamped backups (install.ps1.bak-YYYYMMDD-HHMMSS)
+*.bak-*

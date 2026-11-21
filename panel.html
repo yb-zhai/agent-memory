@@ -1,0 +1,2969 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>记忆星云 · 类脑记忆引擎</title>
+<style>
+  html,body{margin:0;height:100%;background:#05070c;overflow:hidden;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  // canvas 从 DOM 状态栏下方开始，避免顶部 38px 被裁切/重叠
+  #wrap{position:absolute;top:38px;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  canvas{display:block;background:#05070c}
+  /* ── 新版状态栏（DOM 层，浮在 canvas 上方）──────────────────────── */
+  #topbar{position:fixed;top:0;left:0;right:0;height:38px;display:flex;align-items:center;gap:10px;
+    padding:0 14px;z-index:100;background:rgba(6,10,16,.92);border-bottom:1px solid rgba(120,180,220,.18);
+    font-size:11px;color:#7d93a8;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+  #topbar .brand{font-weight:600;color:#dbe7f3;font-size:12px;letter-spacing:.05em;white-space:nowrap}
+  #topbar .brand span{color:#7d93a8;font-weight:400}
+  .badge{font-size:10px;padding:2px 9px;border-radius:20px;border:1px solid rgba(120,180,220,.18);letter-spacing:.04em}
+  .badge.local{color:#a3e635;border-color:rgba(163,230,53,.35)}
+  .badge.hybrid{color:#38e1ff;border-color:rgba(56,225,255,.35)}
+  .badge.off{color:#7d93a8}
+  #tb-bank{color:#7d93a8;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+  .sc-item{display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .sc-k{color:#7d93a8}.sc-v{color:#dbe7f3;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:#3a4d60;flex:none}
+  .dot.green{background:#a3e635;animation:blink 1.4s ease-in-out infinite}
+  .dot.amber{background:#fbbf24}
+  .dot.red{background:#fb7185}.dot.gray{background:#3a4d60}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+  #tb-status{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .tb-btn{background:rgba(13,21,32,.9);border:1px solid rgba(120,180,220,.18);color:#dbe7f3;
+    border-radius:8px;padding:4px 11px;font-size:11px;cursor:pointer}
+  .cfg-wrap{position:relative}
+  #ws-panel{position:absolute;top:30px;right:0;width:290px;background:rgba(10,16,25,.98);
+    border:1px solid rgba(120,180,220,.22);border-radius:12px;padding:14px;display:none;z-index:200;
+    box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  #ws-panel.open{display:block}
+  #ws-panel .row{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:12px}
+  #ws-panel label{color:#7d93a8;min-width:52px}
+  #ws-panel input[type=text],#ws-panel input[type=number]{background:rgba(3,8,13,.7);border:1px solid rgba(120,180,220,.18);
+    color:#dbe7f3;border-radius:6px;padding:4px 8px;font-size:12px}
+  #ws-panel input[type=text]{width:56px}#ws-panel input[type=number]{width:48px}
+  #ws-panel .seg{display:flex;border:1px solid rgba(120,180,220,.18);border-radius:8px;overflow:hidden}
+  #ws-panel .seg button{flex:1;background:transparent;border:0;color:#7d93a8;padding:6px 0;font-size:12px;cursor:pointer}
+  #ws-panel .seg button.active{background:#38e1ff;color:#03131a;font-weight:600}
+  #ws-panel .save{margin-top:10px;width:100%;background:#38e1ff;color:#03131a;border:0;border-radius:8px;
+    padding:7px 0;font-size:13px;font-weight:600;cursor:pointer}
+  #ws-panel .hint{font-size:10px;color:#7d93a8;margin-top:8px;line-height:1.5}
+  #ws-panel input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#38e1ff}
+  #ws-schedule-body{border-top:1px dashed rgba(120,180,220,.18);margin-top:10px;padding-top:10px}
+  /* 熔断/额度提示：放在最底部（只盖住装饰性心跳线），不再压住上面的内容区，
+   并按原因分两种配色：trip=琥珀（本地超限）、quota=红（上游拒付）。 */
+#quota-banner{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:99;font-size:12px;
+    padding:6px 14px;display:none;border-top:1px solid transparent;line-height:1.5}
+#quota-banner.kind-trip{background:rgba(251,191,36,.14);border-top-color:rgba(251,191,36,.45);color:#fbbf24}
+#quota-banner.kind-quota{background:rgba(251,113,133,.16);border-top-color:rgba(251,113,133,.45);color:#fb7185}
+/* 版本号：跟在 MEMORY NEBULA 后面，小号、弱化，方便对版本但不抢标题 */
+.brand .ver{font-style:normal;font-family:'Cascadia Mono',Consolas,monospace;font-size:10.5px;
+  font-weight:600;color:#7ea6c4;letter-spacing:.4px;margin-left:8px;padding:1px 6px;
+  border-radius:9px;background:rgba(56,225,255,.08);border:1px solid rgba(56,225,255,.22);vertical-align:2px}
+/* 冷启动加载态：首帧数据到达前盖在画布上，明确告诉用户在干什么，
+   数据一到就淡出（不阻塞、不抢焦点）。 */
+#loading-overlay{position:fixed;inset:38px 0 0 0;z-index:98;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:16px;background:rgba(8,12,20,.92);
+    transition:opacity .45s ease;opacity:1}
+#loading-overlay.done{opacity:0;pointer-events:none}
+#loading-spin{width:34px;height:34px;border-radius:50%;border:2px solid rgba(56,225,255,.15);
+    border-top-color:#38e1ff;animation:ldspin 1s linear infinite}
+@keyframes ldspin{to{transform:rotate(360deg)}}
+#loading-text{font-family:'Cascadia Mono',Consolas,monospace;font-size:13px;color:#9fd8ef;letter-spacing:.3px}
+#loading-sub{font-size:11px;color:#5c7a90;font-family:'Cascadia Mono',Consolas,monospace}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="brand">记忆星云 <span>MEMORY NEBULA</span><em id="tb-ver" class="ver">v—</em></span>
+  <span id="tb-mode" class="badge local">local</span>
+  <span id="tb-hindsight" class="badge off">Hindsight: 未接入</span>
+  <span id="tb-bank"></span>
+  <span id="tb-status">
+    <span class="sc-item"><span id="sc-quota-dot" class="dot"></span><span class="sc-k">额度</span><span id="sc-quota" class="sc-v">—</span></span>
+    <span class="sc-item"><span id="sc-worker-dot" class="dot"></span><span class="sc-k">worker</span><span id="sc-worker" class="sc-v">—</span></span>
+    <span class="sc-item"><span id="sc-apc-dot" class="dot"></span><span class="sc-k">Hindsight</span><span id="sc-apc" class="sc-v">—</span></span>
+    <span class="cfg-wrap"><button id="ws-btn" class="tb-btn">⚙ worker 调度</button>
+      <div id="ws-panel">
+        <div class="row"><label style="min-width:0;flex:1">完全停用后台 worker</label><input id="ws-disable" type="checkbox" /></div>
+        <div id="ws-schedule-body">
+          <div class="seg"><button id="ws-manual" class="active">手动</button><button id="ws-auto">自动</button></div>
+          <div class="row"><label>时段</label><input id="ws-on" type="text" value="23:00" /> — <input id="ws-off" type="text" value="08:00" /></div>
+          <div class="row"><label>积压阈值</label><input id="ws-thr" type="number" value="20" min="1" /></div>
+          <button class="save" id="ws-save">保存设置</button>
+          <div class="hint" id="ws-hint">手动：按时段开 worker。</div>
+          <div class="hint" id="ws-warn" style="display:none;color:#fbbf24">⚠ 自动档会脱离时段约束，白天也可能开 worker 消耗额度。</div>
+        </div>
+        <div class="hint" id="ws-disable-warn" style="display:none;color:#fb7185"></div>
+        <div id="conn-body" style="border-top:1px dashed rgba(120,180,220,.18);margin-top:10px;padding-top:10px">
+          <div class="row" style="font-size:11px;color:#38e1ff;font-weight:600">Hindsight 连接</div>
+          <div class="row"><label style="min-width:44px">地址</label><input id="cn-url" type="text" style="width:170px" placeholder="http://127.0.0.1:8888" /></div>
+          <div class="row"><label style="min-width:44px">API Key</label><input id="cn-key" type="password" style="width:170px" placeholder="留空=不使用鉴权" /></div>
+          <button class="save" id="cn-save">保存并测试连接</button>
+          <button id="cn-clear" style="margin-top:6px;width:100%;background:transparent;border:1px solid rgba(251,113,133,.4);
+            color:#fb7185;border-radius:8px;padding:6px 0;font-size:12px;cursor:pointer">清除已保存的 Key</button>
+          <div class="hint" id="cn-hint">保存后会加密存在本机（仅当前 Windows 用户可解密），重启自动填充。</div>
+        </div>
+      </div>
+    </span>
+  </span>
+</div>
+<div id="quota-banner"></div>
+<div id="loading-overlay">
+  <div id="loading-spin"></div>
+  <div id="loading-text">正在唤醒本地记忆 …</div>
+  <div id="loading-sub">重建索引 · 连接 Hindsight</div>
+</div>
+<div id="wrap"><canvas id="c"></canvas></div>
+<script>
+"use strict";
+/* ============================================================
+   类脑记忆引擎 · 实时面板
+   数据源：本机 8898 面板服务的 /events (SSE)
+   （native 由 Hindsight HTTP API + DSH 会话文件聚合；legacy 转发旧版 live_server.py）
+   ============================================================ */
+const W = 1600;
+let H = 900;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const HEADER_H = 48, FOOTER_H = 62, RAIL_W = 380, RAIL_X = 24, GAP = 14;
+// 右栏展示的召回卡数量（数据链卡另占顶部固定高度，见 layout()）
+const CARD_COUNT = 4;
+const RAIL = { x: RAIL_X, y: 86, w: RAIL_W };
+let RET = { x: 0, y: 0, w: 0, h: 0 };
+let NET = { x: 0, y: 0, w: 0, h: 0, cx: 0, cy: 0 };
+let CARDS = { x: 0, y: 0, w: 0, h: 0 };
+let CTX = { x: 0, y: 0, w: 0, h: 0 };
+let CHAIN_BOX = { x: 0, y: 0, w: 0, h: 0 };
+// 顶部状态栏占用的设计空间高度（由 fit() 按窗口缩放比算出，见 fit 里的 HEADER_INSET）
+let HEADER_INSET = 48;
+// 召回卡片行几何由 layout() 决定（行距固定，框高按内容算，不留死空）
+let CARD_GEOM = { chh: 80, gap: 18 };
+
+function layout() {
+  const mainX = RAIL_X + RAIL_W + GAP + 8;
+  const mainW = W - mainX - 24;
+  const cardsW = Math.round(mainW * 0.30);
+  const netW = mainW - cardsW - GAP;
+  const retH = 156, ctxH = 94;   // 拼上下文压到一行串联（118 → 94），星图多出 24px
+  // 检索层与顶部 #topbar（HEADER_H=48）留出 10px 空隙：原来框体上沿在 46px 处，
+  // 直接被状态栏压住，看起来"粘"在一起。
+  const y0 = HEADER_INSET + 26;   // RET.y = y0-12 → 距状态栏 14px，和它到动力学层的间距一致
+  const bottom = H - FOOTER_H;
+  RET = { x: mainX, y: y0 - 12, w: mainW, h: retH + 12, cy: y0 };
+  const dynY = y0 + retH + GAP;
+  const dynH = bottom - ctxH - GAP - dynY;
+  // 动力学层与召回片段框体各减 20px（宽度不动）：两块底边对齐，
+  // 省出的 20px 变成它们与拼上下文之间的间距。CHAIN_BOX / CARDS 都由 netH 推导，
+  // 所以数据链、召回卡、以及那条双线的端口坐标都会跟着新高度重算。
+  const SHRINK = 20;
+  const netH = dynH - SHRINK;
+  NET = { x: mainX, y: dynY, w: netW, h: netH, cx: mainX + Math.round(netW / 2), cy: dynY + Math.round(netH / 2) };
+  // 右栏上下两块：召回片段先按「刚好放下 4 张卡」取高度 —— 行距固定、不再靠拉大
+  // 卡片间隙去填满框（那正是之前卡片下面那片死空的来源）；省下的高度全给数据链。
+  // 两块加起来始终等于 netH，所以底边仍与动力学层对齐。
+  const CHAIN_MIN = 172, CARD_GAP = 18, CARD_CHH = 80;   // 80 = 1.1.12 的召回卡片行高，保持不变
+  // 数据链要放得下 4 行且每行 ≥26px：38(标题) + 12(底) + 4×26 + 3×11(行距) = 187。
+  // 之前固定按 172 兜底，窗口偏宽时内区不够，最后一行会顶出框体。
+  const CHAIN_NEED = 38 + 12 + 4 * 26 + 3 * 11;
+  let chh = CARD_CHH;
+  let cardsH = 38 + CARD_COUNT * chh + (CARD_COUNT - 1) * CARD_GAP + 12;
+  if (netH - GAP - cardsH < CHAIN_NEED) {
+    // 窗口很矮时优先保住数据链的最小高度，才把召回卡片行高压下来（下限 56）
+    chh = Math.round(clamp((netH - GAP - CHAIN_NEED - 38 - 12 - (CARD_COUNT - 1) * CARD_GAP) / CARD_COUNT, 56, CARD_CHH));
+    cardsH = 38 + CARD_COUNT * chh + (CARD_COUNT - 1) * CARD_GAP + 12;
+  }
+  // 召回片段这一块只按内容占高，剩下的**全部**给数据链的 4 张小卡（行高均分、间隙固定 11px）
+  const chainH = netH - GAP - cardsH;
+  CARD_GEOM = { chh, gap: CARD_GAP };
+  CHAIN_BOX = { x: mainX + netW + GAP, y: dynY, w: cardsW, h: chainH };
+  CARDS = { x: CHAIN_BOX.x, y: dynY + chainH + GAP, w: cardsW, h: cardsH };
+  CTX = { x: mainX, y: bottom - ctxH, w: mainW, h: ctxH };
+}
+
+function fit() {
+  const winW = Math.max(320, window.innerWidth), winH = Math.max(240, window.innerHeight);
+  // 逻辑高度跟随窗口比例：不再固定 16:9，避免上下留黑边
+  H = Math.round(clamp(Math.round(W * winH / winW), 820, 1320));
+  const s = Math.min(winW / W, winH / H);
+  // 顶部状态栏是 fixed 的 DOM 浮层（约 39px），而 canvas 是从窗口顶端开始画的：
+  // 设计空间里必须预留 39/s 的高度，否则最上面那块框体会被状态栏压住。
+  const barPx = (() => {
+    try {
+      const el = document.getElementById('topbar');
+      return Math.max(0, Math.round((el && el.getBoundingClientRect().height) || 39));
+    } catch { return 39; }
+  })();
+  HEADER_INSET = Math.ceil(barPx / (s || 1));
+  layout();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  // 超采样：窗口比设计宽小时（DSH 面板 iframe 只有 ~1030px，s≈0.64），
+  // 若按 1:1 光栅化，14px 的中文被直接画进 9 个设备像素 —— 笔画互相吃掉，糊成一团。
+  // 这里让位图密度高于显示密度（小窗口时最多 1.75 倍），再由浏览器平滑下采样：
+  // 字会变"软"但笔画保得住，这是 canvas 上唯一能真正改善小字号可读性的手段。
+  // 再设一道总像素闸（≤4200 万）：4K 全屏 + dpr2 时 1.75 倍会到 6000 万以上，
+  // 显存和每帧重绘都会顶不住，宁可退回按显示密度画。
+  const over = s < .9 ? 1.75 : 1;
+  const maxPx = Math.sqrt(42e6 / (W * H));
+  const px = Math.max(Math.max(.25, s * dpr), Math.min(s * over, maxPx) * dpr);
+  cv.width = Math.round(W * px); cv.height = Math.round(H * px);
+  cv.style.width = (W * s) + 'px';
+  cv.style.height = (H * s) + 'px';
+  ctx.setTransform(px, 0, 0, px, 0, 0);
+  // 下采样时的插值质量：低端浏览器默认可能取 nearest，务必显式打开平滑
+  ctx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+}
+addEventListener('resize', fit);
+
+/* 星云视觉参数（对应参考资料里的 minRadius/maxRadius/glowIntensity/lineWidth/particleCount） */
+const NEB = {
+  minRadius: 1.4, maxRadius: 3.8,      // 节点半径基准范围
+  glowIntensity: .7,                    // 激活点光晕强度
+  lineWidth: 1, lineOpacity: 1,         // 神经丝连线
+  particleCount: 260, particleSpeed: .012,
+  halfLife: 45, grace: 7, minWeight: .08,
+  coreRadius: 26
+};
+const VIEW = { yaw: 0, pitch: 0, zoom: 1, drag: null, hover: null, pick: null, mouse: null };
+
+const C = {
+  bg: '#05070c', panel: 'rgba(11,18,28,.72)', panel2: 'rgba(15,24,36,.85)',
+  line: 'rgba(120,180,220,.14)', text: '#dbe7f3', dim: '#b8cdde', faint: '#8ba3b8', mute: '#b4cadb',
+  cyan: '#38e1ff', violet: '#a78bfa', lime: '#a3e635', amber: '#fbbf24', mint: '#5eead4',
+  pink: '#f472b6', rose: '#f9a8d4', blue: '#60a5fa', red: '#fb7185'
+};
+// 面板按 1600px 设计宽绘制，但在 DSH 里只有 ~1030px 宽，整体被缩到 0.64 显示：
+// 设计稿 10px 的字落地只有 6.4px，这才是「看着很暗」的真正原因（不是配色，对比度已全部 ≥5.9:1）。
+// 字号补偿：面板按 1600 设计宽画，窗口化时整体缩放 s<1，文字跟着缩（1050 宽时只剩 .66 倍），
+// 全屏时 s≈1 所以清楚 —— 这就是"全屏清楚、窗口化糊"的根源。
+// 两步处理：① 正文类字号抬 2.6（画进设计稿时就已经更大）；② fit() 里按 s 做超采样，
+// 小字号被平滑下采样而不是直接栅格化成马赛克。注意不能乘到 measure() 之外的尺寸上，否则版式会撑破。
+const TXT_BOOST = 2.6;
+const boostFont = (s) => (s <= 16 ? s + TXT_BOOST : s);
+const px1 = (n) => `${Math.round(n * 10) / 10}px`;
+const F = (w, s) => `${w} ${px1(boostFont(s) + 1)} "Microsoft YaHei","PingFang SC",system-ui,sans-serif`;
+const MONO = (w, s) => `${w} ${px1(boostFont(s) + 1)} "Cascadia Mono",Consolas,ui-monospace,monospace`;
+const hexA = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+};
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const ease = t => 1 - Math.pow(1 - t, 3);
+
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function panel(x, y, w, h, accent, alpha) {
+  ctx.save();
+  rr(x, y, w, h, 10);
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, 'rgba(13,21,32,.96)'); g.addColorStop(1, 'rgba(6,10,16,.96)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = accent ? hexA(accent, alpha == null ? .30 : alpha) : C.line;
+  ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+}
+function txt(s, x, y, font, fill, align, alpha) {
+  ctx.save();
+  if (alpha != null) ctx.globalAlpha = alpha;
+  ctx.font = font; ctx.fillStyle = fill; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function glow(col, blur) { ctx.shadowColor = col; ctx.shadowBlur = blur; }
+function noGlow() { ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; }
+function line(x1, y1, x2, y2, col, w, a) {
+  ctx.save(); ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+/* ---------------- 板块活动闪烁 ---------------- */
+const ACT = { last: {}, amp: {}, prev: {} };
+function poke(key, amp) {
+  ACT.last[key] = performance.now();
+  ACT.amp[key] = Math.max(ACT.amp[key] || 0, amp == null ? 1 : amp);
+}
+function active(key, tau) {
+  const last = ACT.last[key];
+  if (!last) return 0;
+  const dt = (performance.now() - last) / 1000;
+  const a = (ACT.amp[key] || 1) * Math.exp(-dt / (tau || 2.4));
+  return a < .015 ? 0 : a;
+}
+// 整块边框闪烁：mode 决定节奏，a 是活动强度
+function borderPulse(x, y, w, h, col, a, freq, mode, r) {
+  if (a <= .01) return;
+  const t = performance.now() / 1000;
+  let k;
+  if (mode === 'beat') k = Math.pow(Math.abs(Math.sin(t * (freq || 1.4) * Math.PI)), 3);            // 双拍
+  else if (mode === 'strobe') k = Math.sin(t * (freq || 3) * 6.283) > 0 ? 1 : .12;                  // 快闪
+  else if (mode === 'pulse') k = Math.pow(.5 + .5 * Math.sin(t * (freq || 1.3) * 6.283), 2);        // 呼吸
+  else k = .55 + .45 * Math.sin(t * (freq || 1.1) * 6.283);                                          // 缓波
+  const al = clamp(.10 + .80 * a * k);
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = hexA(col, al);
+  ctx.shadowColor = hexA(col, .55 * a); ctx.shadowBlur = 12 * a;
+  rr(x + .5, y + .5, w - 1, h - 1, r == null ? 10 : r);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function fitText(str, maxW, font) {
+  ctx.save(); ctx.font = font;
+  let out = str || '';
+  if (ctx.measureText(out).width <= maxW) { ctx.restore(); return out; }
+  while (out.length > 1 && ctx.measureText(out + '…').width > maxW) out = out.slice(0, -1);
+  ctx.restore(); return out + '…';
+}
+function measure(s, font) { ctx.save(); ctx.font = font; const w = ctx.measureText(s).width; ctx.restore(); return w; }
+
+/* 贪心折行：中文按字断行即可。maxLines 行封顶，最后一行超宽就截断加省略号。 */
+function wrapText(str, maxW, font, maxLines) {
+  ctx.save(); ctx.font = font;
+  const s = String(str || '');
+  const out = [];
+  let line = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (line && ctx.measureText(line + ch).width > maxW) {
+      out.push(line);
+      if (out.length >= maxLines - 1) {
+        const rest = s.slice(i);
+        let tail = rest;
+        while (tail && ctx.measureText(tail + '…').width > maxW) tail = tail.slice(0, -1);
+        out.push(tail + (tail.length < rest.length ? '…' : ''));
+        line = '';
+        break;
+      }
+      line = ch;
+    } else line += ch;
+  }
+  if (line) out.push(line);
+  ctx.restore();
+  return out.slice(0, maxLines);
+}
+/* 短连线（卡内版「连线规」）：全局管线的规则是
+     写入 = 实线 + 彗尾粒子朝内   /   召回·读取 = 虚线 + 彗尾粒子朝外
+   卡内的小卡片之间只有几个像素的缝，画不了整条管线，但保留同三件事：
+   线型表达读/写方向、沿线流动的彗尾粒子表达流向、两端端点圆点表达接触点。
+   dashed=true 表示「读侧派生统计」，false 表示「实流向」；粒子一律从 (x1,y1) 流向 (x2,y2)。 */
+function flowLink(x1, y1, x2, y2, col, dashed, t, seed) {
+  const L = Math.hypot(x2 - x1, y2 - y1) || 1;
+  // 短连线（卡间 11~26px）放不下 2 个粒子 + 3 段拖尾，会糊成一串点：
+  // 按长度降级成 1 个粒子 + 1 段拖尾，端点也缩小，保证还是一"线"而不是一"串"。
+  const short = L < 90;
+  const at = (u) => ({ x: x1 + (x2 - x1) * u, y: y1 + (y2 - y1) * u });
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  if (dashed) ctx.setLineDash(short ? [3, 3] : [4, 4]);
+  ctx.strokeStyle = hexA(col, dashed ? .20 : .26); ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.setLineDash([]);
+  // 彗尾粒子：和 PIPE 同一套观感（亮点 + 递减拖尾），短连线降级
+  const parts = short ? 1 : 2, trails = short ? 1 : 3;
+  for (let j = 0; j < parts; j++) {
+    const u = (t * .42 + j * .5 + (seed || 0) * .17) % 1;
+    for (let b = trails; b >= 1; b--) {
+      const q = at(Math.max(0, u - b * (short ? .18 : .07)));
+      ctx.beginPath(); ctx.arc(q.x, q.y, (short ? 1.6 : 2) - b * .35, 0, 6.3);
+      ctx.fillStyle = hexA(col, (short ? .22 : .26) - b * .06); ctx.fill();
+    }
+    const p = at(u);
+    ctx.beginPath(); ctx.arc(p.x, p.y, short ? 1.3 : 1.5, 0, 6.3);
+    ctx.fillStyle = hexA(col, .95); ctx.fill();
+  }
+  // 两端端点（接触点）
+  for (const p of [at(0), at(1)]) {
+    const r0 = short ? 2.4 : 3;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r0, 0, 6.3); ctx.fillStyle = hexA(col, .10); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, short ? 1.7 : 2.1, 0, 6.3); ctx.fillStyle = hexA(col, .78); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* 数字滚动：值变了就从上一次的显示值缓动到新值（对应动画里计数逐格跳的效果） */
+const TWEEN = new Map();
+function numTween(key, target, t, dur) {
+  dur = dur || .55;
+  let st = TWEEN.get(key);
+  if (!st) { st = { v: target, from: target, to: target, t0: t }; TWEEN.set(key, st); return target; }
+  if (st.to !== target) { st.from = st.v; st.to = target; st.t0 = t; }
+  const p = clamp((t - st.t0) / dur, 0, 1);
+  const e = 1 - Math.pow(1 - p, 3);
+  st.v = st.from + (st.to - st.from) * e;
+  return st.v;
+}
+
+const fmt = n => (n == null ? '—' : n.toLocaleString('en-US'));
+const short = (s, n) => (s || '').replace(/\s+/g, ' ').trim().slice(0, n);
+
+/* ---------------- 状态 ---------------- */
+const S = {
+  layers: null,
+  counts: {}, delta: {}, spark: { units: new Array(60).fill(0), links: new Array(60).fill(0), traces: new Array(60).fill(0) },
+  graph: { nodes: [], edges: [] },
+  newUnits: [],
+  recall: null,
+  anim: null,          // 当前演示
+  known: new Set(),
+  connected: false,
+  booted: false,      // 首帧数据（hello / 首次 /state）到达前为 false，驱动加载覆盖层
+  db: true,
+  version: '',
+  mode: 'legacy',
+  bank: '',
+  errs: {},
+  errDetail: {},
+  lastT: performance.now(),
+  clock0: Date.now(),
+  query: '', answer: '',
+  rev: 0,
+};
+
+/* ---------------- 网络布局 ---------------- */
+let nodes = [], nbyId = new Map(), adj = new Map();
+
+// 点亮节点向核心收拢的比例（1 = 不动的原始半径）
+// 按 hop 分层：种子收得最多，越靠外的跳数收得越少，保证「由内向外」的层次不丢
+const SEED_PULL = 0.72;
+const HOP_PULL = [SEED_PULL, 0.84, 0.89];   // hop 0 / 1 / 2
+
+function hash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0);
+}
+function buildGraph(g) {
+  const NEB_K = clamp(Math.min(NET.w, NET.h) / 560, 1, 2.2);
+  const cx = NET.cx - 10, cy = NET.cy + 2;
+  const centers = [
+    [cx - 118, cy - 96], [cx + 122, cy - 26], [cx - 16, cy + 128]
+  ];
+  const grpOf = f => f === 'observation' ? 1 : f === 'world' ? 2 : 0;
+  nodes = g.nodes.map((n, i) => {
+    const h = hash(n.id);
+    const grp = grpOf(n.fact_type);
+    const a = ((h % 10000) / 10000) * Math.PI * 2;
+    const rad = Math.sqrt((h >>> 7) % 10000) / 100 * 120;
+    const c0 = centers[grp];
+    const bx = c0[0] + Math.cos(a) * rad, by = c0[1] + Math.sin(a) * rad * .86, bz = 0;
+    return {
+      id: n.id, text: n.text || '', fact: n.fact_type || 'experience', g: grp, w: n.w || 1,
+      // bx/by/bz 是簇内基准坐标；x/y/z 是每帧实际用的坐标（种子会被往内收，见 applyHops）
+      bx, by, bz,
+      x: bx, y: by, z: bz,
+      r: 2.4, deg: 0,
+      ph: ((h >>> 3) % 1000) / 1000 * 6.28,
+      seen: S.known.has(n.id) ? 1 : 0,
+      hop: 9, act: 0
+    };
+  });
+  nbyId = new Map(nodes.map(n => [n.id, n]));
+  adj = new Map(nodes.map(n => [n.id, []]));
+  const E = [];
+  for (const [a, b, w] of g.edges) {
+    const A = nbyId.get(a), B = nbyId.get(b);
+    if (!A || !B) continue;
+    adj.get(a).push([b, w]); adj.get(b).push([a, w]);
+    A.deg++; B.deg++; E.push([A, B, w]);
+  }
+  nodes.forEach(n => { n.r = 1.8 + Math.min(3.8, Math.sqrt(n.deg) * .95); });
+  // 结构骨架：按「每个节点自己的最强几条边」取并集（而不是全局权重排序），
+  // 这样长尾节点也能连上，画面既不满也不散。
+  {
+    const PER = 6;
+    const byNode = new Map();
+    for (const e of E) {
+      for (const [u, v] of [[e[0], e[1]], [e[1], e[0]]]) {
+        if (!byNode.has(u.id)) byNode.set(u.id, []);
+        byNode.get(u.id).push([e, v]);
+      }
+    }
+    const seen = new Set(), keep = [];
+    for (const [id, list] of byNode) {
+      list.sort((p2, q2) => q2[0][2] - p2[0][2]);
+      let taken = 0;
+      for (const [e, other] of list) {
+        if (taken >= PER) break;
+        const key = e[0].id < e[1].id ? e[0].id + '|' + e[1].id : e[1].id + '|' + e[0].id;
+        if (!seen.has(key)) { seen.add(key); keep.push(e); }
+        taken++;
+      }
+    }
+    E.length = 0; keep.forEach(e => E.push(e));
+  }
+
+  // 三维星云：方向按 fact_type 分三个扇区，半径按有效权重分层（权重大 → 靠近核心）
+  // 用「权重的分位」而不是线性值分层：权重差异很小也能拉开内外圈
+  const wSorted = nodes.map(n => n.w).sort((a, b) => a - b);
+  const rankOf = w => {
+    let lo = 0, hi = wSorted.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (wSorted[m] < w) lo = m + 1; else hi = m; }
+    return lo / Math.max(1, wSorted.length - 1);
+  };
+  const counters = [0, 0, 0];
+  const order = nodes.slice().sort((a, b) => (hash(a.id) % 997) - (hash(b.id) % 997));
+  const lobes = [[-1, -.55, .1], [1, -.12, .55], [-.15, .95, -.6]];
+  for (const n of order) {
+    const k = counters[n.g]++;
+    const h = hash(n.id);
+    const wn = rankOf(n.w);                                        // 0..1 权重分位
+    const rr0 = 74 + 148 * (1 - wn) + 14 * Math.sqrt((k % 9) + .5);
+    const th = k * 2.399963 + (h % 628) / 100;
+    const u = ((h >>> 5) % 10000) / 10000;
+    const phi = Math.acos(1 - 2 * u);
+    const lb = lobes[n.g];
+    const lbn = Math.hypot(lb[0], lb[1], lb[2]);
+    // 三成朝本层 lobe 方向，七成球面随机，形成扇区感但不呆板
+    const dx = .34 * lb[0] / lbn + .66 * Math.cos(th) * Math.sin(phi);
+    const dy = .34 * lb[1] / lbn + .66 * Math.sin(th) * Math.sin(phi) * .86;
+    const dz = .34 * lb[2] / lbn + .66 * Math.cos(phi);
+    const dn = Math.hypot(dx, dy, dz) || 1;
+    n.x = dx / dn * rr0; n.y = dy / dn * rr0; n.z = dz / dn * rr0;
+    // 记下基准坐标：种子会被 applyHops 往内收，需要能反复还原
+    n.bx = n.x; n.by = n.y; n.bz = n.z;
+    n.wn = wn;
+  }
+    // 每点只画最强的 4 条边，避免毛发球
+  const keep = new Set();
+  for (let i = 0; i < nodes.length; i++) {
+    const ns = adj.get(nodes[i].id) || [];
+    ns.sort((p, q) => q[1] - p[1]);
+    ns.slice(0, 3).forEach(([id]) => keep.add(i + '|' + id));
+  }
+  nodes._edges = E.filter(([A, B, w]) => w > 0.95 || keep.has(nodes.indexOf(A) + '|' + B.id) || keep.has(nodes.indexOf(B) + '|' + A.id));
+}
+let rndSeed = 7;
+function rnd2() { rndSeed = (rndSeed * 1103515245 + 12345) & 0x7fffffff; return rndSeed / 0x7fffffff; }
+
+/* ---------------- SSE ---------------- */
+/* 交互：拖拽旋转 / 滚轮缩放 / 悬停 / 点击详情 */
+(function bindView() {
+  let down = null;
+  const toLocal = e => {
+    const r = cv.getBoundingClientRect();
+    const px = cv.width / r.width, py = cv.height / r.height;
+    return { x: (e.clientX - r.left) * px / (cv.width / W), y: (e.clientY - r.top) * py / (cv.height / H) };
+  };
+  cv.style.cursor = 'grab';
+  cv.addEventListener('mousedown', e => {
+    down = { x: e.clientX, y: e.clientY, yaw: VIEW.yaw, pitch: VIEW.pitch };
+    cv.style.cursor = 'grabbing';
+  });
+  addEventListener('mouseup', () => { down = null; VIEW.drag = null; cv.style.cursor = 'grab'; });
+  addEventListener('mousemove', e => {
+    if (down) {
+      VIEW.yaw = down.yaw + (e.clientX - down.x) * .006;
+      VIEW.pitch = clamp(down.pitch + (e.clientY - down.y) * .004, -1.1, 1.1);
+      return;
+    }
+    const r = cv.getBoundingClientRect();
+    VIEW.mouse = { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+  });
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    VIEW.zoom = clamp(VIEW.zoom * (e.deltaY > 0 ? .92 : 1.08), .55, 2.4);
+  }, { passive: false });
+  cv.addEventListener('click', e => {
+    const r = cv.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / r.width * W, my = (e.clientY - r.top) / r.height * H;
+    let best = null, bd = 16;
+    for (const n of nodes) {
+      const d = Math.hypot((n.sx || 0) - mx, (n.sy || 0) - my);
+      if (d < bd) { bd = d; best = n; }
+    }
+    VIEW.pick = best;
+  });
+})();
+
+function connect() {
+  // 首帧先把 /state 拉一遍，避免 SSE 首包到达前左栏是 0
+  fetch('/state').then(r => r.json()).then(st => {
+    if (typeof st.db === 'boolean') S.db = st.db;
+    if (st.version) S.version = st.version;
+    if (st.mode) S.mode = st.mode;
+    if (st.bank) S.bank = st.bank;
+    if (st.counts) S.counts = st.counts;
+    if (st.layers) S.layers = st.layers;
+    if (st.layerStats) S.layerStats = st.layerStats;
+    if (st.graph && st.graph.nodes && !S.graph) { buildGraph(st.graph); S.graph = st.graph; }
+    if (st.recall && !S.anim) onRecall(st.recall, true);
+    S.booted = true;   // 首帧数据已就绪，撤掉加载覆盖层
+  }).catch(() => {});
+  // 自更新：DSH 的 iframe 在 URL 不变时会复用缓存页面，升级插件后重启也看不到新面板。
+  // 这里每 30s 问一次服务端的 panel.html build，和本页加载时的比对，不一致就强制重载。
+  // 用 link 加时间戳方式重载，绕开缓存（location.reload 在某些 Electron 版本仍会用缓存）。
+  (function watchPanelUpdate() {
+    const selfBuild = String(window.__PANEL_BUILD__ || '');
+    if (!selfBuild) return;
+    setInterval(() => {
+      fetch('/version', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (!j || !j.panelBuild || j.panelBuild === selfBuild) return;
+          const u = new URL(location.href);
+          u.searchParams.set('_r', String(Date.now()));
+          location.replace(u.toString());
+        })
+        .catch(() => {});
+    }, 30000);
+  })();
+  // 每 30s 对齐一次最新召回：谁跑了召回（面板按钮 / 脚本 / 维护任务）都能跟上
+  setInterval(() => {
+    fetch('/state').then(r => r.json()).then(st => {
+      if (st.counts) S.counts = st.counts;
+      if (st.recall && (!S.recall || st.recall.id !== S.recall.id)) onRecall(st.recall, true);
+    }).catch(() => {});
+  }, 30000);
+  let es = null;
+  // SSE 连接做成可重建：sidecar 重启后 EventSource 偶尔会卡在 error 状态不再自动重连，
+  // 表现就是「左栏不再闪、召回卡片停在旧值」——不是渲染没跑，是根本没新数据进来。
+  function openES() {
+    try { if (es) es.close(); } catch { }
+    es = new EventSource('/events?rev=__BUILD__&t=' + Date.now());
+  es.onopen = () => { S.connected = true; };
+  es.onerror = () => { S.connected = false; };
+  es.onmessage = ev => {
+    S.__lastMsg = performance.now();
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.type === 'hello') {
+      S.counts = m.counts || {};
+      if (typeof m.db === 'boolean') S.db = m.db;
+      if (m.version) setPluginVersion(m.version);
+      if (m.mode) S.mode = m.mode;
+      if (m.bank) S.bank = m.bank;
+      if (m.layers) S.layers = m.layers;
+      if (m.layerStats) S.layerStats = m.layerStats;
+      S.connected = true;
+      S.booted = true;   // hello 帧到达 = 首帧数据就绪
+      // SSE 即时驱动状态栏（不等 60s 轮询）：hello 帧带完整连接状态
+      applyHindsightUI(!!(m.hindsightAvailable || m.db), m.mode, m.bank);
+      if (m.graph && m.graph.nodes) { buildGraph(m.graph); S.graph = m.graph; if (S.anim && S.anim.seeds) applyHops(S.anim.seeds); }
+      if (m.recall) onRecall(m.recall, true);
+      return;
+    }
+    if (m.type === 'page') {
+      // 页面文件已更新（改代码后自动重载，不用手点刷新）
+      try { location.reload(); } catch { }
+      return;
+    }
+    if (m.type === 'recall') {
+      poke('pipeline', 1); poke('dynamics', 1); poke('cards', 1); poke('ctx', 1); poke('retrieve', 1);
+      onRecall(m, false); return;
+    }
+    if (m.counts) {
+    // 每块自己的活动：哪个数字涨了就闪哪块边框
+    const L = S.layers || {};
+    const now = { sessions: L.sessions && L.sessions.count, conv: L.conversation && (L.conversation.users + L.conversation.assistants), tools: L.conversation && L.conversation.tool_calls, extract: L.ingest && L.ingest.entities, memory: m.counts.units, retrieve: m.counts.traces };
+    for (const k in now) {
+      if (ACT.prev[k] != null && now[k] != null && now[k] > ACT.prev[k]) poke(k, 1);
+      ACT.prev[k] = now[k];
+    }
+
+      S.delta = m.delta || {};
+      if (typeof m.db === 'boolean') S.db = m.db;
+      if (m.version) setPluginVersion(m.version);
+      if (m.mode) S.mode = m.mode;
+      if (m.bank) S.bank = m.bank;
+      // SSE tick 即时刷新 Hindsight 指示（降级/恢复立即可见）
+      applyHindsightUI(!!(m.hindsightAvailable || m.db), m.mode, m.bank);
+      S.counts = m.counts;
+      if (m.spark) S.spark = m.spark;
+      if (m.layers) S.layers = m.layers;
+      if (m.layerStats) S.layerStats = m.layerStats;
+      if (m.graph && m.graph.nodes) {
+        const changed = m.graph.rev !== S.graph.rev;
+        S.graph = m.graph;
+        if (changed) { buildGraph(m.graph); if (S.anim && S.anim.seeds) applyHops(S.anim.seeds); }
+      }
+      if (m.new_units && m.new_units.length) {
+        for (const u of m.new_units) {
+          if (S.known.has(u.id)) continue;
+          S.known.add(u.id);
+          S.newUnits.unshift({ ...u, born: performance.now() });
+          const n = nbyId.get(u.id);
+          if (n) { n.seen = 0; n.hop = 9; n.act = 0; }
+        }
+        S.newUnits = S.newUnits.slice(0, 7);
+      }
+    }
+  };
+  }
+  openES();
+
+  // SSE 看门狗：15 秒收不到任何帧（服务端 refreshMs≈1.5s），或连接标记为断开，
+  // 就重建连接并补拉一次 /state；再失败就整页重载兜底。
+  let esStaleTries = 0;
+  setInterval(() => {
+    const now = performance.now();
+    const last = S.__lastMsg || 0;
+    const stale = !S.connected || !last || (now - last > 15000);
+    if (!stale) { esStaleTries = 0; return; }
+    esStaleTries++;
+    fetch('/state', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((st) => {
+        if (!st) return;
+        if (st.counts) S.counts = st.counts;
+        if (st.layers) S.layers = st.layers;
+        if (st.layerStats) S.layerStats = st.layerStats;
+        if (st.recall && (!S.recall || st.recall.id !== S.recall.id)) onRecall(st.recall, true);
+        // 只有在「服务端明明活着（/state 能拉到）、SSE 却连了 4 次还卡死」时才整页重载。
+        // 服务端本来就挂着的时候绝不重载，否则页面会停在错误页、服务恢复后也不会自己回来。
+        if (esStaleTries >= 4) { esStaleTries = 0; try { location.reload(); } catch { } }
+      })
+      .catch(() => { });
+    openES();
+  }, 5000);
+}
+
+/* 跳数着色：图重建后节点是新对象，必须能重新算一遍，否则高亮会消失
+   兜底：召回种子若不在当前子图里（后端只返回子图时仍可能出现），
+   就按它的邻居坐标插值动态插一个节点，让它能亮起来而不是被静默丢掉 */
+function applyHops(seeds) {
+  const hop = new Map();
+  const lit = [];
+  for (const s of seeds) {
+    if (!s) continue;
+    if (nbyId.has(s)) { if (!hop.has(s)) { hop.set(s, 0); lit.push(s); } }
+    else attachOrphanSeed(s);
+  }
+  // 刚插进来的节点也要成为 BFS 起点
+  for (const s of seeds) if (s && nbyId.has(s) && !hop.has(s)) { hop.set(s, 0); lit.push(s); }
+  // 每跳设上限、按边权从大到小取：不设上限时，图一密就会把整张图点亮，
+  // 失去「一圈亮点 + 大片休眠」的层次（旧版 种子12/1跳32/2跳16 即此比例）。
+  // 倍数与 server.js 的 hopQuota 保持一致，否则面板统计和 /state 对不上。
+  const seedN = Math.max(1, lit.length);
+  const cap = { 1: seedN * 3, 2: seedN * 2 };
+  let frontier = lit.slice();
+  for (let d = 1; d <= 2; d += 1) {
+    const cand = new Map();
+    for (const v of frontier) {
+      for (const [u, w] of (adj.get(v) || [])) {
+        if (hop.has(u)) continue;
+        const prev = cand.get(u);
+        if (prev === undefined || w > prev) cand.set(u, w);
+      }
+    }
+    const sorted = [...cand.entries()].sort((a, b) => b[1] - a[1]);
+    const next = [];
+    for (const [u] of sorted) {
+      if (next.length >= cap[d]) break;
+      hop.set(u, d); next.push(u);
+    }
+    frontier = next;
+    if (!frontier.length) break;
+  }
+  // 点亮节点的最大基准半径：落点圈在 0.89·rMax，点亮节点必须留在它里面并留出间距
+  let baseMaxR = 1;
+  for (const n of nodes) {
+    const bx = (n.bx !== undefined ? n.bx : n.x), by = (n.by !== undefined ? n.by : n.y), bz = (n.bz !== undefined ? n.bz : n.z);
+    const r = Math.hypot(bx, by, bz);
+    if (r > baseMaxR) baseMaxR = r;
+  }
+  // 分带（相对基准半径）：种子最内、2 跳最外；上限 0.80 留出 0.09 与落点圈的间距。
+  const HOP_BAND = [[.32, .46], [.50, .64], [.66, .80]];
+  for (const n of nodes) {
+    n.hop = hop.has(n.id) ? hop.get(n.id) : 9;
+    n.act = n.hop === 0 ? 1 : (n.hop < 9 ? Math.pow(.58, n.hop) : 0);
+    // 先把上一轮的位移还原，再按本轮 hop 重算，避免多次召回累积漂移
+    if (n.bx !== undefined) { n.x = n.bx; n.y = n.by; n.z = n.bz; }
+    if (n.hop > 2 || n.orphan) continue;
+    // 以前是整体乘一个固定 pull（0.72/0.84/0.89）：同类节点本来挤在一处，乘完还是挤。
+    // 现在按 hop 分带 + 每点确定性抖动（半径在带内随机、绕 z 轴小角度旋转），
+    // 既把点亮的那几十个点铺开，又不让它们跑到落点圈外面去。
+    const band = HOP_BAND[n.hop];
+    const h1 = (hash(n.id) % 1000) / 1000;
+    const h2 = ((hash(n.id + '#a') >>> 3) % 1000) / 1000;
+    const rad = (band[0] + (band[1] - band[0]) * h1) * baseMaxR;
+    const r0 = Math.hypot(n.x, n.y, n.z) || 1;
+    const k = rad / r0;
+    n.x *= k; n.y *= k; n.z *= k;
+    const rot = (h2 - .5) * .30;          // ±0.15 rad 的角度微扰，打散同向堆积
+    const cs = Math.cos(rot), sn = Math.sin(rot);
+    const nx = n.x * cs - n.y * sn, ny = n.x * sn + n.y * cs;
+    n.x = nx; n.y = ny;
+  }
+}
+
+/* 把图外的种子挂到图上：优先贴近它的已有邻居，找不到就用极坐标撒在外圈 */
+function attachOrphanSeed(id) {
+  if (nbyId.has(id)) return;
+  // 在边的两端里找已知节点的邻域质心（后端子图有时只带一端）
+  let sx = 0, sy = 0, sz = 0, found = 0;
+  for (const [A, B] of (nodes._edges || [])) {
+    if (A.id !== id && B.id !== id) continue;
+    const other = A.id === id ? B : A;
+    if (!other || !Number.isFinite(other.x)) continue;
+    sx += other.x; sy += other.y; sz += other.z || 0; found++;
+  }
+  const h = hash(id);
+  let x, y, z;
+  if (found) {
+    // 落在邻居附近，稍微外推一点，避免完全重叠
+    x = sx / found + (Math.cos((h % 628) / 100) * 26);
+    y = sy / found + (Math.sin((h % 628) / 100) * 22);
+    z = sz / found + (((h >>> 9) % 100) / 100 - .5) * 40;
+  } else {
+    const a = ((h % 10000) / 10000) * Math.PI * 2;
+    const r = 90 + (((h >>> 7) % 1000) / 1000) * 120;
+    x = Math.cos(a) * r; y = Math.sin(a) * r * .86; z = (((h >>> 11) % 100) / 100 - .5) * 160;
+  }
+  const node = {
+    id, text: '', fact: 'seed', g: 0, w: 1,
+    x, y, z, wn: 1, r: 2.4, deg: 0,
+    ph: ((h >>> 3) % 1000) / 1000 * 6.28,
+    seen: 1, hop: 0, act: 1, orphan: 1,
+  };
+  nodes.push(node);
+  nbyId.set(id, node);
+  adj.set(id, []);
+}
+
+/* ---------------- 召回事件 ---------------- */
+function onRecall(m, replay) {
+  S.pendingAt = 0;
+  const seeds = (m.seeds || []).map(s => s.id);
+  // 真实数据链：服务端已按 score 降序排好、并保留 source/arm/layer/kind 等字段。
+  // 不再随机抽卡/轮换（那是旧版示意动画），最多取前 10 条真实片段。
+  const results = (m.results || []).slice(0, CARD_COUNT);
+  S.pool = m.results || [];
+  const t0 = replay ? performance.now() - 60000 : performance.now();
+  S.recall = m;
+  S.anim = { t0, query: m.query || '', seeds, results, latency: m.latency_ms || 0, fresh: m.fresh === true, nAct: (m.activated || []).length, meta: m.meta || null };
+  applyHops(seeds);
+  // 答案：取分数最高的那条的真实文本
+  const top = results[0];
+  S.answer = top ? (top.text || '') : '';
+  S.answerT0 = t0 + 900;   // 打字机起点（不再轮换，稍早出字）
+  if (top) S.answerSrc = S.answer;
+}
+
+/* ---------------- 召回片段：按真实数据链着色/标注 ----------------
+   每条片段带 source(local/hindsight)、arm(lexical/activation/graph/profile)、
+   why、layer、kind、score。颜色按来源+召回臂固定映射，不再随机。 */
+const ARM_META = {
+  lexical:    { label: '命中', col: 'cyan' },
+  activation: { label: '激活', col: 'violet' },
+  graph:      { label: '联想', col: 'lime' },
+  profile:    { label: '画像', col: 'pink' },
+  hindsight:  { label: 'HIND', col: 'amber' },
+};
+function armMeta(r) {
+  if (!r) return { label: '', col: 'amber' };
+  if (r.source === 'hindsight') return ARM_META.hindsight;
+  return ARM_META[r.arm] || ARM_META.activation;
+}
+function cardColor(r) { return C[armMeta(r).col] || C.amber; }
+
+/* 显示用分数：排序已经用 RRF（score = 1/(60+rank)，量级 0.016~0.033，可读性差），
+   这里展示原始相关度分 rawScore（0~1 或 Hindsight 语义分），回退到 score 兜底
+   （demo 卡片没有 rawScore，用 score）。 */
+function dispScore(r) {
+  if (!r) return 0;
+  return Number(r.rawScore != null ? r.rawScore : r.score) || 0;
+}
+
+/* 召回卡颜色：每 3 秒换一组随机色。卡片、星云→卡片的连线、拼上下文里同序号的小卡片
+   全部读这一个色源，所以三者永远同步变化；只换颜色，不换数据。 */
+const CARD_TINTS = ['cyan', 'violet', 'lime', 'amber', 'pink', 'mint', 'rose', 'blue'];
+function cardTint(i) {
+  const now = performance.now();
+  if (!S.tints) { S.tints = []; S.tintAt = []; }
+  // 候选色：排除「别人正在用的」和「自己上一个」，避免四张卡撞色
+  const pickTint = (exclude) => {
+    const all = CARD_TINTS.map((n) => C[n]);
+    const used = S.tints.filter((c, k) => k !== i && c);
+    let cand = all.filter((c) => c !== exclude && used.indexOf(c) < 0);
+    if (!cand.length) cand = all.filter((c) => c !== exclude);
+    if (!cand.length) cand = all;
+    return cand[(Math.random() * cand.length) | 0];
+  };
+  if (!S.tints[i]) {
+    S.tints[i] = pickTint(null);
+    S.tintAt[i] = now + 800 + Math.random() * 3000;
+  } else if (now >= (S.tintAt[i] || 0)) {
+    // 每条片段各自计时、各自换色（1.2~5s 随机），四条不会同时刷
+    S.tints[i] = pickTint(S.tints[i]);
+    S.tintAt[i] = now + 2500 + Math.random() * 4500;   // 2.5~7s，四条各刷各的，明显错开
+  }
+  return S.tints[i] || C.amber;
+}
+/* 召回卡片示例数据：只在**没有任何真实召回**时垫底，让人一眼看清卡片结构
+   （序号 / 臂标签 / 分层·类型 / 分数 / 正文 / 分数条）。有真数据时永远优先真数据；
+   真的召回跑过但返回 0 条也照实显示空，不会用示例盖住"空结果"。
+   首次打开随机抽 4 条并缓存在 S.demo，刷新面板换一组。 */
+const DEMO_CARDS = [
+  { source: 'local', arm: 'lexical', layer: 'fragment', kind: 'note', score: 0.91, why: '词法命中 3 词 · 词频 0.62', text: '四臂召回：词法 0.55 / 激活 0.30 / 时效 0.15，沿边扩散两跳' },
+  { source: 'hindsight', kind: 'observation', score: 0.86, why: 'Hindsight semantic · 距离 0.24', text: '连线规则：双向通信画两条（一实一虚），单向只画一条实线' },
+  { source: 'local', arm: 'activation', layer: 'event', kind: 'episode', score: 0.79, why: '1 跳激活 · 边权 0.71', text: '试一次召回：4 条片段入选，候选 163、丢弃 155，约 4.6 秒' },
+  { source: 'local', arm: 'graph', layer: 'fragment', kind: 'fact', score: 0.72, why: '2 跳联想 · 路径 2 条', text: '边类型只允许语义 / 赫布 / 显式，导入后共 41,352 条' },
+  { source: 'local', arm: 'profile', layer: 'summary', kind: 'note', score: 0.66, why: '画像偏好命中', text: '面板按真实数据链整理：标签卡只读现有接口，不发新请求' },
+  { source: 'hindsight', kind: 'world', score: 0.61, why: 'Hindsight world 视图', text: 'Hindsight 是真实记忆库；本地 JSONL 只是单向镜像' },
+];
+function demoCards() {
+  if (S.demo && S.demo.length) return S.demo;
+  const pool = DEMO_CARDS.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  // 按分数降序排（和真实召回一致），别让示例卡出现 0.91 / 0.64 / 0.68 这种乱序
+  S.demo = pool.slice(0, CARD_COUNT)
+    .sort((x, y) => y.score - x.score)
+    .map((c) => ({ ...c, demo: true }));
+  return S.demo;
+}
+
+/* ---------------- 绘制 ---------------- */
+// 顶部标题/连接状态/版本/时钟已由 DOM 状态栏(#topbar)承担，
+// canvas 不再重复绘制，避免与状态栏重叠、也把空间留给内容。
+function header(t) {
+  // 顶部状态栏是 DOM 浮层，canvas 的 y=0 就在它下面 —— 这里不再画任何东西，
+  // 免得装饰线被状态栏盖住、或者变成一条悬在检索层上方的杂线。
+}
+
+function zoneTitle(x, y, no, zh, en, accent, dz = 0) {
+  txt(no, x, y, MONO(600, 13), hexA(accent, .9));
+  txt(zh, x + 22, y, F(700, 17 + dz), '#dbe7f3');
+  txt(en, x + 22 + measure(zh, F(700, 17 + dz)) + 9, y - 1, MONO(400, 11), hexA(C.dim, .95));
+  return y + 16;
+}
+
+/* ① 存储层 */
+/* ① 架构分层：会话 → 对话 → 工具/任务 → 抽取 → 记忆 → 检索/推理 */
+function storage(t) {
+  const x = RAIL.x, w = RAIL.w;
+  const FS = clamp(H / 900, .85, 1.25);   // 字号随窗口比例放大：窗口越窄，设计字号越大
+  const L = S.layers || {};
+  const conv = L.conversation || {};
+  const sess = L.sessions || {};
+  const ing = L.ingest || {};
+  const mem = L.memory || {};
+  const ret = L.retrieval || {};
+  const llm = L.llm || {};
+  const nowS = Date.now() / 1000;
+  const ageTxt = (ts) => {
+    if (!ts) return '—';
+    const d = Math.max(0, nowS - ts);
+    return d < 90 ? Math.round(d) + 's 前' : d < 5400 ? Math.round(d / 60) + 'min 前' : Math.round(d / 3600) + 'h 前';
+  };
+
+  const top1 = (conv.tool_top && conv.tool_top[0]) ? conv.tool_top[0] : ['—', 0];
+  /* 第 9 项 = 口径标签，画在标题行 zh 与 en 之间的空白处（副行是单行且 fitText
+     从尾部截断，口径写进去会被截掉）。六卡数字来自不同统计域，并排极易被误读成
+     同一套全局统计，故逐卡标明口径。 */
+  const cards = [
+    ['①', '会话源', 'SESSIONS', C.cyan, (sess.count || conv.sessions || 0), '个会话文件',
+      `${sess.mb || 0} MB 压缩日志 · 活跃 ${sess.active || 0} · 最后 ${ageTxt(sess.last_ts)}`, sess.last_ts, '全机会话文件'],
+    ['②', '对话流', 'CONVERSATION', C.rose, ((conv.users || 0) + (conv.assistants || 0)), '条消息',
+      `用户 ${fmt(conv.users || 0)} · 助手 ${fmt(conv.assistants || 0)} · 第 ${conv.turns || 0} 轮 / ${conv.steps || 0} 步`, conv.last_ts, '仅最新会话'],
+    ['③', '工具与任务', 'TOOLS · TASKS', C.violet, (conv.tool_calls || 0), '次调用',
+      `待办 ${conv.todos || 0} · 子代理 ${conv.subagents || 0} · 主力 ${top1[0]} ${top1[1]}`, conv.last_ts, '仅最新会话'],
+    ['④', '抽取层', 'EXTRACT', C.lime, (ing.entities || 0), '个去重实体',
+      `文档 ${ing.documents || 0} · 分块 ${fmt(ing.chunks)} · 实体被提及累计 ${fmt(ing.unit_entities)} 次`, null, '去重实体 / 累计提及'],
+    ['⑤', '记忆层', 'MEMORY', C.amber, (mem.units || S.counts.units || 0), '条记忆',
+      `边 ${fmt(mem.links || 0)} · 印迹 ${fmt(mem.engrams)} · 桥 ${fmt(mem.bridges)}`, null, '全库 /stats'],
+    ['⑥', '检索 · 推理', 'RETRIEVE · LLM', C.pink, (ret.traces || 0), '次召回',
+      `全量推理 ${fmt(llm.requests || 0)} · 7天 ${((llm.tokens || 0) / 1e6).toFixed(2)}M tok · 最近 ${ret.last_latency ? (ret.last_latency / 1000).toFixed(1) + 's' : '—'}`, ret.last_ts, '本插件累计 · 多口径'],
+  ];
+  let y = RAIL.y - 6;
+  const tw = measure('架构分层', F(800, 19));
+  txt('架构分层', x + 14, y + 16, F(800, 19), '#eaf2fb');
+  txt('DSH · MEMORY · LAYERS', x + 14 + tw + 12, y + 15, MONO(400, 10.5), hexA(C.dim, .95));
+  const live = L.conversation ? '实时' : '连接中';
+  txt(live, x + w - 14, y + 14, F(400, 10), hexA(C.lime, .95), 'right');
+  y += 26;
+
+  /* ---- 引擎铭牌 ----
+     这三样不在同一抽象层（Hindsight 是数据源本体、LLM 是生成端、VL 是边缘工具），
+     所以不做成三块卡片，只做一条 status strip：谁活着、叫什么、是不是花钱的。
+
+     关键取舍：VL 项只在**探到**时才画。它的探活走服务端（插件不依赖这个模型，
+     别的机器上大概率没有），探不到就整项不出现 —— 画一个永远等不来的灰点占位
+     才是真正的误导。 */
+  {
+    const eng = L.engines || {};
+    const hs = eng.hindsight || {};
+    const lm = eng.llm || {};
+    const vl = eng.vl || {};
+    // 两行排布：Hindsight 是系统本体，单独一行；模型引擎放第二行。
+    // 标签用状态色的高亮版而不是 C.dim —— dim 在这块深底上是"次要说明"的灰，
+    // 但这两个名字是主角，灰掉等于没写。
+    const fTag = MONO(700, 11.5);
+    const fName = MONO(600, 11.5);
+    const avail = w - 28;
+    const GAPX = 16;
+
+    const host = String(hs.url || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    // 版本跟着服务端 /version 走：升级 Hindsight 后这里自动变，不用改代码
+    const hsVer = String(hs.version || '').replace(/^v/i, '').trim();
+    const hsName = hs.ok
+      ? [hsVer ? `v${hsVer}` : '', host || '已连接'].filter(Boolean).join(' · ')
+      : '未连接';
+
+    // 每行独立排版：先量总宽，超了才逐级让步（缩名字），绝不让后面的项静默消失
+    const drawRow = (items, rowY) => {
+      let list = items.map((it) => ({ ...it }));
+      const widthOf = (arr) => arr.reduce((s, it) => s + measure(it.tag, fTag) + 6 + 10 + measure(it.name, fName) + GAPX, -GAPX);
+      if (widthOf(list) > avail) {
+        // 先缩最宽的那一项的名字
+        const widest = list.slice().sort((a, b) => measure(b.name, fName) - measure(a.name, fName))[0];
+        const others = widthOf(list.filter((it) => it !== widest)) + (list.length > 1 ? GAPX : 0);
+        const room = avail - others - (measure(widest.tag, fTag) + 6 + 10);
+        if (room > 30) widest.name = fitText(widest.name, room, fName);
+      }
+      let cx = x + 14;
+      for (const it of list) {
+        // 标签用状态色的高亮版（col 本身在深底上偏暗，加一层浅色混合提亮）
+        ctx.save();
+        ctx.fillStyle = hexA(it.col, .95);
+        ctx.shadowColor = hexA(it.col, .6);
+        ctx.shadowBlur = 7;
+        txt(it.tag, cx, rowY, fTag, hexA(it.col, .95));
+        ctx.restore();
+        cx += measure(it.tag, fTag) + 6;
+        ctx.save();
+        ctx.fillStyle = hexA(it.col, it.blink ? .5 + .5 * Math.abs(Math.sin(t * 2.2)) : .95);
+        if (it.blink) { ctx.shadowColor = hexA(it.col, .85); ctx.shadowBlur = 8; }
+        ctx.beginPath(); ctx.arc(cx + 3, rowY - 4, 3.4, 0, 6.3); ctx.fill();
+        ctx.restore();
+        cx += 10;
+        // 名字比标签更亮：它是"叫什么"，比"是哪一类"更该看清
+        txt(it.name, cx, rowY, fName, it.col === C.dim ? hexA(C.dim, .95) : '#eaf4ff');
+        cx += measure(it.name, fName) + GAPX;
+      }
+    };
+
+    const row1 = [{ tag: 'HINDSIGHT', col: hs.ok ? C.lime : C.red, name: hsName, blink: Boolean(hs.ok) }];
+    // 模型名常常是一整条本地路径（<Hindsight>\models\<model>），
+    // 挤在 LLM 这一行里量不出宽度就会被尾部截断。这里把「目录」和「模型名」拆成两行：
+    //   LLM ● bge-reranker-base
+    //   <Hindsight>\models
+    const rawModel = String(lm.model || '');
+    const mCut = Math.max(rawModel.lastIndexOf('\\'), rawModel.lastIndexOf('/'));
+    const modelDir = mCut > 0 ? rawModel.slice(0, mCut) : '';
+    const modelName = mCut > 0 ? rawModel.slice(mCut + 1) : rawModel;
+    // worker 停用时：LLM 铭牌只是"最近一次调用的记录"，不代表此刻在花钱。
+    // 之前这里一直显示模型名 + 绿点，看起来像"还在跑"，容易误判。
+    const workerOff = S.workerEnabled === false;
+    const row2 = [{
+      tag: 'LLM',
+      col: !lm.model ? C.dim : (workerOff ? C.dim : (lm.billing === 'local' ? C.mint : C.amber)),
+      name: (modelName || '无调用记录') + (workerOff ? ' · 已停' : ''),
+      blink: false,
+    }];
+    // VL 只有探到才画；探不到整项不出现，不占位、不留永远等不来的灰点
+    if (vl.running) row2.push({ tag: 'VL', col: C.lime, name: vl.model || 'qwen-vl', blink: true });
+
+    drawRow(row1, y + 14);
+    drawRow(row2, y + 33);
+    // 目录单独一行（更暗的小字，宽度不够才截断；正常情况下整条路径都放得下）
+    if (modelDir) {
+      txt(fitText(modelDir, w - 28, MONO(400, 9.5)), x + 14, y + 51, MONO(400, 9.5), hexA(C.dim, .78));
+      y += 66;
+    } else y += 48;
+  }
+
+  const gap = 6;
+  const railBottom = H - FOOTER_H - 46;
+  const h = clamp(Math.floor((railBottom - y - 88 - 5 * gap) / 6), 68, 128);
+  S.railRects = [];
+  cards.forEach(([no, zh, en, col, mainNum, unit, sub, ts, scope], i) => {
+    const cy = y + i * (h + gap);
+    S.railRects.push({ x, y: cy, w, h, col });
+    const hot = ts && nowS - ts < 40;
+    panel(x, cy, w, h, col, 0);
+    // 统一尺寸的粗边框：六张卡片全部 2px 常显
+    ctx.save();
+    rr(x + 1, cy + 1, w - 2, h - 2, 10);
+    ctx.strokeStyle = hexA(col, .48);
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    ctx.stroke();
+    ctx.restore();
+    {
+      const key = ['sessions', 'conv', 'tools', 'extract', 'memory', 'retrieve'][i];
+      const mode = ['pulse', 'beat', 'strobe', 'pulse', 'beat', 'wave'][i];
+      const freq = [1.0, 1.7, 3.4, .85, 1.25, 2.1][i];
+      borderPulse(x, cy, w, h, col, active(key, 2.6) + (hot ? .35 : 0), freq, mode);
+    }
+    const ch2 = Math.round(h * .34);
+    const zhFont = F(700, 15.5 * FS);
+    const enFont = MONO(400, 9.5 * FS);
+    txt(zh, x + 18, cy + ch2 - 2, zhFont, '#e9f1f9');
+    txt(en, x + w - 16, cy + ch2 - 2, enFont, hexA(col, .95), 'right');
+    // 口径标签：六卡数字来自不同统计域，标题行补一行说明，避免并排误读成同一套全局统计
+    if (scope) {
+      const scopeFont = F(400, 9.5 * FS);
+      const left = x + 18 + measure(zh, zhFont) + 10;
+      const right = x + w - 16 - measure(en, enFont) - 12;
+      txt(fitText(scope, Math.max(16, right - left), scopeFont), left, cy + ch2 - 2, scopeFont, hexA(C.dim, .82));
+    }
+    // 主数字
+    const my = cy + Math.round(h * .62);
+    const mfont = MONO(400, clamp(h * .22, 18, 25) * FS);
+    const main = fmt(Math.round(numTween('card' + i, mainNum, t)));
+    txt(main, x + 18, my, mfont, hexA(col, .96));
+    txt(unit, x + 22 + measure(main, mfont), my, F(400, 11.5 * FS), hexA(C.dim, .95));
+    // 副行
+    txt(fitText(sub, w - 34, F(400, 11.5 * FS)), x + 18, cy + h - 12, F(400, 11.5 * FS), hexA('#c4d4e2', .98));
+  });
+  y += 6 * (h + gap);
+
+  // 左缘数据总线：光点随数据活动向下流动（有活动就快一点）
+  {
+    const lvl = active('sessions', 2.4) + active('memory', 2.4) + active('retrieve', 2.4) + .22;
+    const y0 = RAIL.y + 6, y1 = railBottom;
+    for (let i = 0; i < 11; i++) {
+      const ph = ((t * (.055 + .075 * clamp(lvl, 0, 2)) + i / 11) % 1);
+      const py = y0 + ph * (y1 - y0);
+      const al = (.08 + .34 * Math.sin(ph * Math.PI)) * (.55 + .45 * clamp(lvl, 0, 1.6));
+      ctx.fillStyle = hexA(i % 3 === 0 ? C.mint : C.cyan, al);
+      ctx.beginPath(); ctx.arc(x + 7, py, 1.5, 0, 6.3); ctx.fill();
+    }
+  }
+
+  // 最近活动 ticker（贴住页脚上方，不随卡片高度漂移）
+  const tail = (conv.tail || []).slice(-3);
+  const bottom = H - FOOTER_H - 46;
+  panel(x, bottom - 88, w, 88, C.cyan, .12);
+  const ty = bottom - 88;
+  txt('最近活动', x + 14, ty + 21, F(600, 10.5), hexA(C.dim, .95));
+  tail.forEach((e, i) => {
+    const col = e.kind === 'user' ? C.lime : C.violet;
+    txt(e.kind === 'user' ? '用户' : '工具', x + 14, ty + 41 + i * 16, MONO(400, 9.5), hexA(col, .95));
+    txt(fitText(e.text, w - 76, F(400, 10)), x + 52, ty + 41 + i * 16, F(400, 10), hexA('#c9d6e4', .9));
+  });
+  return bottom;
+}
+
+/* ② 检索层 + top-8 */
+function pipeline(t) {
+  const { x, y, w, h } = RET;
+  const a = S.anim;
+  const el = a ? (performance.now() - a.t0) / 1000 : 99;
+  const yc = RET.cy;                      // 内容基线固定，面板上边界单独上抬
+  panel(x, y, w, h, C.violet, .20);
+  borderPulse(x, y, w, h, C.violet, active('pipeline', 3.2), 2.2, 'wave');
+  zoneTitle(x + 16, yc + 22, '②', '检索层', 'RETRIEVAL · 本地四臂 + Hindsight', C.violet, 1);
+  // 四段改为本地引擎四臂召回的真实命中数（来自 S.anim.meta.arms），不再是 EMBED/HNSW/BM25/RRF 示意管线
+  const mh = a && a.meta ? (a.meta.hindsightCount || 0) : 0;
+  txt(mh ? `本地四臂 + HIND ${mh} · 真实` : '本地四臂命中 · 真实数据', x + w - 220, yc + 22, MONO(400, 9.5), hexA(C.dim, .8), 'right');
+
+  // 试一次召回（标题行右端；小的 query 芯片在 drawBoardLinks 里画）
+  S.qbtn = { x: x + w - 202, y: yc + 8, w: 90, h: 24 };
+  const pend = !!S.pendingAt && performance.now() - S.pendingAt < 60000;
+  rr(S.qbtn.x, S.qbtn.y, S.qbtn.w, S.qbtn.h, 6);
+  ctx.fillStyle = hexA(C.violet, pend ? .26 : .14); ctx.fill();
+  ctx.strokeStyle = hexA(C.violet, pend ? .85 : .38); ctx.stroke();
+  txt(pend ? '召回中…' : '试一次召回', S.qbtn.x + 45, yc + 24, F(400, 11), hexA(C.violet, .95), 'center');
+
+  // 四段 = 本地引擎四臂召回的真实命中数（无召回时显示 —）
+  const scols = [C.cyan, C.violet, C.lime, C.amber];
+  const FS = clamp(H / 900, .85, 1.25);   // 字号随窗口比例放大
+  const arms = (a && a.meta && a.meta.arms) || null;
+  const hind = a && a.meta ? (a.meta.hindsightCount || 0) : 0;
+  // 第四槽位：本地有画像命中就显示画像，否则显示 Hindsight 命中（当前记忆多在 Hindsight 层）
+  const slot4 = (arms && arms.profile > 0)
+    ? ['PROFILE', arms.profile + ' 命中']
+    : ['HIND', a ? (hind + ' 命中') : '— 叠加'];
+  const stages = [
+    ['LEX', arms ? arms.lexical + ' 命中' : '— 命中'],
+    ['ACT', arms ? arms.activation + ' 命中' : '— 激活'],
+    ['GRAPH', arms ? arms.graph + ' 命中' : '— 联想'],
+    slot4,
+  ];
+  const GAPS = [10, 10, 10];
+  const sy = yc + 74, ch = 52;
+  const cw = (w - 32 - GAPS[0] - GAPS[1] - GAPS[2]) / 4;
+  S.stageRects = [];
+  stages.forEach(([n, sub], k) => {
+    const col = scols[k];
+    const on = a ? clamp((el - .55 - k * .28) / .3) : 0;
+    const bx = x + 16 + k * cw + (k === 1 ? GAPS[0] : k === 2 ? GAPS[0] + GAPS[1] : k === 3 ? GAPS[0] + GAPS[1] + GAPS[2] : 0);
+    S.stageRects.push({ x: bx, y: sy, w: cw, h: ch, col });
+    rr(bx, sy, cw, ch, 8);
+    ctx.fillStyle = on > 0 ? hexA(col, .10 + .10 * on) : hexA(col, .05); ctx.fill();
+    ctx.strokeStyle = on > 0 ? hexA(col, .45 + .40 * on) : hexA(col, .22);
+    ctx.lineWidth = 1; ctx.stroke();
+    txt(n, bx + 12, sy + 31, F(700, 16 * FS), on > 0 ? hexA('#eaf0ff', .95) : hexA(col, .95));
+    // 副行贴在标题右边，固定 10px 间距，同一基线
+    const nw = measure(n, F(700, 16 * FS));
+    txt(sub, bx + 12 + nw + 10, sy + 31, MONO(400, 11.5 * FS), hexA(col, .95));
+    if (on > .05) {
+      ctx.fillStyle = hexA(col, .10 + .12 * on);
+      rr(bx + cw - 30, sy + 13, 18, 3, 2); ctx.fill();
+    }
+    if (on > .02) {
+      rr(bx + 8, sy + ch - 4, (cw - 16) * on, 1.6, 1);
+      ctx.fillStyle = hexA(col, .55 + .35 * on); ctx.fill();
+    }
+  });
+
+  // 扫光：一条柔亮带沿四段管线缓慢巡游
+  {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x + 16, sy, w - 32, ch); ctx.clip();
+    const sx = x + 16 + ((t * .28) % 1) * (w - 32);
+    const g = ctx.createLinearGradient(sx - 46, 0, sx + 46, 0);
+    g.addColorStop(0, hexA(C.violet, 0));
+    g.addColorStop(.5, hexA('#ffffff', .11));
+    g.addColorStop(1, hexA(C.violet, 0));
+    ctx.fillStyle = g; ctx.fillRect(sx - 46, sy, 92, ch);
+    ctx.restore();
+  }
+
+  // a.latency 是单次召回的 HTTP 往返耗时，不是 p50；旧文案写 p50 是把单次值冒充分位统计。
+  // restored 状态（m.fresh!==true）下的这个数字是上一次落盘的留存值，不是本进程刚测的，必须标清楚。
+  const capQ = a ? ('▸ ' + a.query + (a.fresh ? ' · 本次 ' : ' · 上次留存 ') + Math.round(a.latency || 0) + 'ms · ' + a.results.length + ' 条片段')
+                 : (S.pendingAt ? '▸ 检索中 …' : '▸ 点右侧按钮真跑一次召回');
+  txt(fitText(capQ, w - 220, MONO(400, 10)), x + 16, y + h - 10, MONO(400, 10), hexA(C.dim, .95));
+  // 底部标注真实召回口径：候选数 / 丢弃数（来自本地引擎 stats），不写死假参数
+  const m2 = a && a.meta ? a.meta : null;
+  const foot = m2 ? `候选${m2.n_candidates} · 丢弃${m2.dropped}` : '本地四臂 + Hindsight 叠加';
+  txt(foot, x + w - 16, y + h - 10, MONO(400, 10), hexA(C.dim, .95), 'right');
+  return y + h;
+}
+
+/* 召回片段的行几何：卡片高度固定区间内，把剩余高度均分到行距，铺满面板 */
+function cardGeom() {
+  // 行高/行距由 layout() 统一给出：框高 = 头部 + 4 行 + 3 间隙 + 12px 内边距，
+  // 所以最后一张卡下面不会再多出一片空白。
+  const { y } = CARDS;
+  return { top: y + 38, chh: CARD_GEOM.chh, gap: CARD_GEOM.gap };
+}
+function cardMid(i) {
+  const g = cardGeom();
+  return g.top + i * (g.chh + g.gap) + g.chh / 2;
+}
+
+function cards(t) {
+  const { x, y, w, h } = CARDS;
+  const a = S.anim;
+  const el = a ? (performance.now() - a.t0) / 1000 : 99;
+  panel(x, y, w, h, C.amber, .18);
+  borderPulse(x, y, w, h, C.amber, active('cards', 3.4), 1.9, 'beat');
+  txt('召回片段', x + 16, y + 24, F(700, 15), hexA('#dbe7f3', .95));
+  // 真实数据链：按召回臂/来源着色，分数降序，不再随机轮播
+  const meta = a && a.meta ? a.meta : null;
+  // 有真数据就只认真数据；只有"还没跑过召回"时才用示例垫底
+  const real = a && a.results && a.results.length ? a.results : null;
+  const res = real || demoCards();
+  const armSummary = meta && meta.arms
+    ? `命中${meta.arms.lexical}·激活${meta.arms.activation}·联想${meta.arms.graph}·画像${meta.arms.profile}` + (meta.hindsightCount ? `·HIND${meta.hindsightCount}` : '')
+    : (real ? '等待召回' : '示例结构 · 未召回');
+  // 标题「召回片段」和右侧统计摘要在窄栏里会互相压字，先按可用宽度截断摘要
+  const cTitleW = measure('召回片段', F(700, 15));
+  txt(fitText(armSummary, w - 32 - cTitleW - 12, F(400, 10.5)), x + w - 16, y + 24, F(400, 10.5), hexA(C.dim, .9), 'right');
+
+  // 有数据在跑（召回中/召回结果在场）时，整块框体做一档低强度呼吸：
+  // 只叠一条半透明描边，不碰任何坐标和尺寸，布局一动不动。
+  if (a || S.pendingAt) {
+    const k = .5 + .5 * Math.sin(performance.now() / 1000 * 2.1);
+    ctx.save();
+    rr(x + .5, y + .5, w - 1, h - 1, 10);
+    ctx.strokeStyle = hexA(C.amber, .05 + .10 * k);
+    ctx.lineWidth = 2.5 + 1.5 * k;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const g = cardGeom();
+  const chh = g.chh, gap = g.gap, y0 = g.top;
+  for (let i = 0; i < CARD_COUNT; i++) {
+    const cy = y0 + i * (chh + gap);
+    const r = res[i];
+    const ap = real ? clamp((el - 1.6 - i * .10) / .35) : 1;
+    if (!r || ap <= 0) {
+      rr(x + 12, cy, w - 24, chh, 7);
+      ctx.fillStyle = 'rgba(255,255,255,.022)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1; ctx.stroke();
+      if (a) txt(`${i + 1}`, x + 24, cy + chh / 2 + 4, MONO(400, 11), hexA(C.dim, .95));
+      continue;
+    }
+    ctx.save(); ctx.globalAlpha = ap;
+    rr(x + 12, cy + (1 - ap) * 8, w - 24, chh, 7);
+    ctx.fillStyle = 'rgba(20,30,44,.86)'; ctx.fill();
+    const am = armMeta(r);
+    const col = cardTint(i);   // 颜色跟 3 秒随机色源走（同一序号的连线/拼上下文芯片共用）
+    ctx.strokeStyle = hexA(col, .34); ctx.lineWidth = 1; ctx.stroke();
+
+    // 第一行：序号 + 臂标签 + 分层/类型 + 分数
+    const label = am.label;
+    const sub = r.source === 'hindsight'
+      ? String(r.kind || 'HIND')
+      : [r.layer, r.kind].filter(Boolean).join('/') || label;
+    const fTag = F(700, 11);
+    const tagW = measure(label, fTag) + 12;
+    const topY = cy + Math.min(15, chh * .38);
+    txt(`${i + 1}`, x + 24, topY, MONO(400, 10), hexA(col, .95));
+    rr(x + 40, topY - 11, tagW, 15, 3);
+    ctx.fillStyle = hexA(col, .18); ctx.fill();
+    ctx.strokeStyle = hexA(col, .4); ctx.stroke();
+    txt(label, x + 46, topY, fTag, hexA(col, .95));
+    txt(fitText(sub, w - 24 - 46 - tagW - 52, MONO(400, 11)), x + 46 + tagW + 6, topY, MONO(400, 11), hexA(C.dim, .95));
+    txt(dispScore(r).toFixed(2), x + w - 24, topY, MONO(600, 12), hexA(col, .95), 'right');
+
+    // 第二行：真实文本（按臂着色的细分数条）
+    // 卡片变高（chh≥92）时用两行正文 + 一行「为什么命中」，把多出来的高度用掉，
+    // 免得卡片中间留一片空白；矮卡仍然单行截断。
+    const f1 = F(400, 13);
+    const maxTW = w - 24 - 32;
+    const twoLine = chh >= 92;
+    const why = String(r.why || '').trim();
+    if (twoLine && why && why !== String(r.kind || '')) {
+      txt(fitText(why, maxTW, F(400, 10.5)), x + 24, cy + 32, F(400, 10.5), hexA(C.dim, .85));
+    }
+    const lines = twoLine ? wrapText(r.text, maxTW, f1, 2) : [fitText(r.text, maxTW, f1)];
+    const lineH = 15;
+    const lastY = cy + chh - 6;
+    lines.forEach((ln, k) => txt(ln, x + 24, lastY - (lines.length - 1 - k) * lineH, f1, hexA('#e6f0f7', .95)));
+    const bx = x + 24, bw = w - 24 - 32;
+    const by = cy + chh - 3;
+    rr(bx, by, bw, 2, 1); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fill();
+    rr(bx, by, bw * clamp(dispScore(r) / 1.2, 0, 1), 2, 1); ctx.fillStyle = hexA(col, .8); ctx.fill();
+
+    // 正被轮换点亮的那一片：加一层很弱的底光 + 描边，与球体呼吸同相位；
+    // 亮度由 SPOT.level（0.6s 淡入 / 0.6s 淡出，缓动）控制，所以换片是渐变不是跳变。
+    if (i === SPOT.cur && SPOT.level > .02) {
+      const ph = breath(t, i * .9);
+      const k = SPOT.level * (.30 + .70 * ph);
+      rr(x + 12, cy, w - 24, chh, 7);
+      ctx.fillStyle = hexA(col, .09 * k);
+      ctx.fill();
+      ctx.strokeStyle = hexA(col, .22 + .34 * k);
+      ctx.lineWidth = 1 + 1.1 * k;
+      ctx.stroke();
+      // 左侧一道窄光条，标识"当前这一片"
+      rr(x + 12, cy + 3, 2.2, chh - 6, 1.1);
+      ctx.fillStyle = hexA(col, .35 + .45 * k);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  return y + h;
+}
+
+/* 数据链卡片：右栏顶部独立一块（排在召回片段卡之上）。
+   数据全部来自 /state 已有的 counts / layerStats / counts.bySource，不发新请求。 */
+/* 数据链 4 行小卡的几何（行中心 y + 连线锚点 x）。
+   drawChainLinksEarly 与 chainCards 共用，保证线端和卡片里的锚点永远对得上。
+   锚点 x 放在「标签文字右侧的空档」，不再贴着字。 */
+function chainRowGeom() {
+  const { x, y, w, h } = CHAIN_BOX;
+  const labels = ['双源', '本地分层', '边类型', '活性态'];
+  const cols = [C.lime, C.cyan, C.violet, C.rose];
+  const n = labels.length;
+  const fK = F(700, 12.5);
+  const top = y + 38;
+  // 行高/行距一律由内区高度反推，保证 4 行**永远**放得下：
+  // 之前 rgap 固定 11、bh 下限 22，窗口偏宽时内区不够，最后一行会顶出框体。
+  const inner = Math.max(4 * 20, h - 38 - 12);
+  const MIN_BH = 26;
+  let rgap = 11;
+  if (inner < n * MIN_BH + rgap * (n - 1)) {
+    rgap = Math.max(5, Math.floor((inner - n * MIN_BH) / (n - 1)));
+  }
+  const bh = Math.max(18, (inner - rgap * (n - 1)) / n);
+  const labelX = x + 12 + 10;
+  // 卡片之间那条竖线落点：最宽标签右侧的空档 → 四段竖线对齐在同一列
+  const stubX = Math.round(labelX + Math.max.apply(null, labels.map((k) => measure(k, fK))) + 12);
+  return labels.map((k, i) => {
+    const cy = top + i * (bh + rgap);
+    return {
+      i, k, col: cols[i], bh, cy, rgap,
+      y: cy + bh / 2,
+      labelX,
+      // 标签宽 + 12px 间隙 = 该行空档（星云连线各自落在自己标签右侧）
+      linkX: Math.round(labelX + measure(k, fK) + 12),
+      stubX,
+    };
+  });
+}
+
+/* 这 4 条「小卡 → 星云」的连线要画在卡片底下：
+   锚点挪进了卡片内部（标签右侧空档），如果还按常规顺序画在卡片上层，
+   线会横穿标签文字。所以这里在 chainCards 之前先把曲线画掉，
+   卡片面板会盖住卡内那一小段，视觉上正好停在卡片左缘。 */
+
+function chainCards(t) {
+  const { x, y, w, h } = CHAIN_BOX;
+  const ls = S.layerStats || {};
+  const cnt = S.counts || {};
+  const by = cnt.bySource || {};
+  const layers = ls.layers || {};
+  const edges = ls.edges || {};
+  // 外框与标题与「召回片段」完全一致（同样的 panel / 标题字号基线 / 内边距）
+  panel(x, y, w, h, C.amber, .18);
+  borderPulse(x, y, w, h, C.amber, active('cards', 3.4), 1.9, 'beat');
+  txt('数据链', x + 16, y + 24, F(700, 15), hexA('#dbe7f3', .95));
+  // 标题栏右侧信息：窄卡时可能和标题撞上，先按可用宽度截断
+  const titleW = measure('数据链', F(700, 15));
+  const sideW = w - 32 - titleW - 12;
+  if (sideW > 60) {
+    const sideTxt = fitText(`稳定度 ${(Number(ls.avgStability) || 0).toFixed(2)} · 词表 ${fmt(ls.tokens || 0)}`, sideW, F(400, 10.5));
+    txt(sideTxt, x + w - 16, y + 24, F(400, 10.5), hexA(C.dim, .9), 'right');
+  }
+
+  // 小卡内是多段数字（如 3 层/3 类边），用紧凑格式避免被截断：
+  // 万位以下原样、以上用 k 缩写，并去掉千分位逗号。
+  const compact = (n) => {
+    const v = Number(n) || 0;
+    if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (v >= 1e4) return Math.round(v / 1e3) + 'k';
+    return String(v);
+  };
+  // 「遗忘态 归档/休眠」原先是引擎的 archived/dormant 计数，但这两个标记只有
+  // 巩固/遗忘任务跑过才会置位（闲置 60 / 90 天阈值），镜像导入的记忆永远是 0，
+  // 卡片长期 0/0 看着像坏掉。改成与动力学层头部同口径的真实可观测值：
+  // hop<=2（种子/1 跳/2 跳）算醒，其余算眠 —— 同为 applyHops 写入的 hop 字段，
+  // 无召回时全部计入眠，不会出现 0/0。
+  const awake = nodes.filter((n) => n.hop <= 2).length;
+  const asleep = nodes.filter((n) => n.hop > 2).length;
+  // 四张卡改成分层顺序，直接对应真实数据流（原来 2×2 摆法读不出上下游）：
+  //   双源（本/HIND 两路来源）→ 本地分层（来源落库后按 ev/fg/sm 分层）
+  //   → 边类型（层内节点之间建语/赫/显边）→ 活性态（召回沿边扩散，醒/眠）
+  const items = [
+    { k: '双源', v: `${compact(by.local)} / ${compact(by.hindsight)}`, s: '本/HIND', col: C.lime },
+    { k: '本地分层', v: `${compact(layers.event)} / ${compact(layers.fragment)} / ${compact(layers.summary)}`, s: 'ev/fg/sm', col: C.cyan },
+    { k: '边类型', v: `${compact(edges.semantic)} / ${compact(edges.hebbian)} / ${compact(edges.explicit)}`, s: '语/赫/显', col: C.violet },
+    { k: '活性态', v: `${compact(awake)} / ${compact(asleep)}`, s: '醒/眠', col: C.rose },
+  ];
+  // 4 行 × 1 列：每张卡独占一行、纵向排列（原来是 2×2，两张挤一行读不清）。
+  // 内卡外观与召回卡内部小卡一致（x+12 起、w-24 宽、圆角 7、
+  // 深底 rgba(20,30,44,.86) + 按主题色描边），边距/内边距与召回卡对齐。
+  // 单行布局：左「标签」· 中间「口径」·  右对齐「数值」，三者在同一基线上。
+  const cw = w - 24;
+  const geom = chainRowGeom();          // 行中心/行距与卡间竖线同源
+  const bh = geom[0].bh;
+  // 字号对齐检索层的小字档（说明行 MONO 9.5 / 计数 MONO 10），不要比它更粗大
+  // 中文标签改用无衬线（中文在等宽字体里会回退成系统字，小字号下发虚）；
+  // 数字/口径仍用等宽，跟检索层一样「中文无衬线 + 数字等宽」的分工。
+  const fK = F(700, 12.5), fS = F(400, 11.5), fV = MONO(600, 12.5);
+  items.forEach((it, i) => {
+    const cx = x + 12;
+    const cy = geom[i].cy;
+    rr(cx, cy, cw, bh, 7);
+    ctx.fillStyle = 'rgba(20,30,44,.86)'; ctx.fill();
+    ctx.strokeStyle = hexA(it.col, .34); ctx.lineWidth = 1; ctx.stroke();
+    const midY = cy + bh / 2 + 3.5;
+    txt(it.k, cx + 10, midY, fK, hexA(it.col, .95));
+
+    const kW = measure(it.k, fK);
+    // 数值右对齐；口径贴在数值左侧，宽度不够就先省掉口径，绝不和数值/标签压住
+    const vs = fmt(it.v);
+    const vw = measure(vs, fV);
+    txt(fitText(vs, cw - 20 - kW - 8, fV), cx + cw - 10, midY, fV, hexA('#e6f0f7', .95), 'right');
+    const sAvail = cw - 20 - kW - 8 - vw - 10;
+    if (sAvail > 22) {
+      txt(fitText(it.s, sAvail, fS), cx + cw - 10 - vw - 8, midY, fS, hexA(C.dim, .88), 'right');
+    }
+  });
+  // 把每张小卡的行中心/锚点记下来：drawBoardLinks 要用它画「卡 → 星云」的连线。
+  // 几何统一从 chainRowGeom() 取，避免这里再算一遍 top/bh/rgap 造成两处不一致。
+  S.chainRows = geom.map((g, i) => ({
+    y: g.y,
+    linkX: g.linkX,
+    col: items[i].col,
+    k: items[i].k,
+  }));
+
+  // 上下游连线：只连真有数据关系的相邻两张（上游卡 → 下游卡）。
+  // 按连线协议：这是**单向**通信（下游不回传给上游），所以只用一条**实线**，
+  // 线型不用虚线（虚线专用于双向通信里的回流那一条）；颜色取上游卡主题色。
+  for (let i = 0; i < items.length - 1; i++) {
+    // 卡片之间那条竖线：落在「最宽标签右侧的空档」那一列，四段对齐成一条，
+    // 不再贴着左边框压标签字。
+    const lx = geom[i].stubX;
+    const y1 = geom[i].cy + geom[i].bh;
+    const y2 = geom[i + 1].cy;
+    flowLink(lx, y1 - 1, lx, y2 + 1, items[i].col, false, t, i);
+  }
+}
+
+function context(t) {
+  const { x, y, w, h } = CTX;
+  const a = S.anim;
+  const el = a ? (performance.now() - a.t0) / 1000 : 99;
+  panel(x, y, w, h, C.amber, .22);
+  borderPulse(x, y, w, h, C.amber, active('ctx', 3.0), 1.5, 'pulse');
+  const res = a ? a.results : [];
+  const nEv = res.length;
+  // 真实统计：候选数 / 实际用掉 tokens / 因预算丢弃数，全部来自本地引擎 recall 结果
+  const meta = a && a.meta ? a.meta : null;
+  txt('拼上下文', x + 16, y + 24, F(700, 13), hexA('#dbe7f3', .95));
+  const statLine = meta
+    ? `${nEv} 条入选 · 候选${meta.n_candidates} · ${meta.tokensUsed.toLocaleString()} tokens · 丢弃${meta.dropped}`
+    : '等待召回';  txt(statLine, x + 92, y + 24, F(400, 10), hexA(C.dim, .95));
+  const onA = a ? clamp((el - 2.2) / .5) : 0;
+  txt(onA > .5 ? '已拼装 ●' : '待输入', x + w - 16, y + 24, F(400, 11), hexA(onA > .5 ? C.lime : C.faint, .95), 'right');
+
+  // 片段芯片：数量与右侧召回卡一致（CARD_COUNT），一条横向串联的装配线：
+  // 4 张卡一字排开，卡与卡之间用「连线规」的实线 + 彗尾粒子连起来（拼装＝写入侧，
+  // 所以用实线、粒子顺流向），最后一张再垂直落进 OUT —— 高度从 2 行压到 1 行。
+  const CN = Math.min(CARD_COUNT, nEv);
+  const GAPX = 26;
+  const cw2 = (w - 32 - GAPX * (CARD_COUNT - 1)) / CARD_COUNT, chh = 22;
+  const chipY = y + 32;
+  const chipX = (i) => x + 16 + i * (cw2 + GAPX);
+  for (let i = 0; i < CN; i++) {
+    const ap = clamp((el - 1.8 - i * .06) / .3);
+    if (ap <= 0) continue;
+    const cx2 = chipX(i);
+    const am = armMeta(res[i]);
+    const cc = cardTint(i);   // 与召回卡片同序号同色
+    ctx.save(); ctx.globalAlpha = ap;
+    rr(cx2, chipY, cw2, chh, 5); ctx.fillStyle = hexA(cc, .10); ctx.fill();
+    ctx.strokeStyle = hexA(cc, .28); ctx.lineWidth = 1; ctx.stroke();
+    txt(am.label, cx2 + 8, chipY + 15, MONO(400, 9.5), hexA(cc, .95));
+    txt(dispScore(res[i]).toFixed(2), cx2 + cw2 - 8, chipY + 15, MONO(400, 9.5), hexA(C.dim, .9), 'right');
+    ctx.restore();
+    // 卡 → 下一张卡（或 → OUT）：装配线上的串联段
+    if (ap > .5) {
+      const ax = cx2 + cw2, ay = chipY + chh / 2;
+      if (i < Math.min(CN, CARD_COUNT) - 1) {
+        flowLink(ax, ay, ax + GAPX, ay, C.amber, false, t, i);
+      }
+    }
+  }
+  // 最后一条：装配线末端垂下接 OUT
+  if (CN > 0 && el > 2.4) {
+    const lastX = chipX(Math.min(CN, CARD_COUNT) - 1) + cw2 / 2;
+    flowLink(lastX, chipY + chh, lastX, y + h - 30, C.amber, false, t, CN);
+  }
+
+  // OUT
+  const outY = y + h - 30;
+  rr(x + 16, outY, w - 32, 24, 6); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
+  ctx.strokeStyle = hexA(C.lime, .22); ctx.lineWidth = 1; ctx.stroke();
+  txt('OUT', x + 26, outY + 16, MONO(400, 9), hexA(C.lime, .95));
+  const typed = onA > 0 ? S.answer.slice(0, Math.floor(clamp(((S.answerT0 != null ? performance.now() - S.answerT0 : performance.now() - a.t0 - 4800)) / 1600) * S.answer.length)) : '';
+  txt(fitText(typed || (a ? '（等待拼装）' : '（空）'), w - 106, F(400, 12)), x + 66, outY + 19, F(400, 12), hexA(typed ? C.amber : C.dim, .95));
+  return y + h;
+}
+
+function dynamics(t) {
+  const { x, y, w, h, cx, cy } = NET;
+  const a = S.anim;
+  const el = a ? (performance.now() - a.t0) / 1000 : 99;
+  panel(x, y, w, h, C.blue, .20);
+  borderPulse(x, y, w, h, C.blue, active('dynamics', 2.8), 1.1, 'pulse');
+  zoneTitle(x + 16, y + 24, '③', '动力学层', 'DYNAMICS', C.blue);
+  // 这里画的是以召回种子为中心、最多 2 跳抽样的子图（server.js 的 wanted 上限），
+  // 不是全库拓扑：全库节点/边数请看左栏 ⑤「记忆层（全库 /stats）」。
+  txt('抽样子图 · 非全库拓扑', x + w - 16, y + 24, MONO(400, 10), hexA(C.dim, .9), 'right');
+
+  // 召回瞬间：一条扫描亮线自上而下扫过星云
+  if (a) {
+    const sp = clamp(el / 1.5, 0, 1);
+    if (sp < 1) {
+      const yy = NET.y + 44 + sp * (NET.h - 70);
+      const g2 = ctx.createLinearGradient(NET.x, 0, NET.x + NET.w, 0);
+      g2.addColorStop(0, hexA(C.cyan, 0));
+      g2.addColorStop(.5, hexA(C.cyan, .26 * (1 - sp)));
+      g2.addColorStop(1, hexA(C.cyan, 0));
+      ctx.fillStyle = g2; ctx.fillRect(NET.x + 10, yy, NET.w - 20, 1.6);
+    }
+  }
+
+  // 图例：色点 + 名称 + 实时数量（数量直接画进图例，避免"只有颜色没有数"看起来像缺数据）
+  // 数据来自当前图节点的 hop 字段（applyHops 写入），无召回时全部为 0。
+  const hopCount = {
+    seed: nodes.filter((n) => n.hop === 0 && n.act > 0).length,
+    h1: nodes.filter((n) => n.hop === 1).length,
+    h2: nodes.filter((n) => n.hop === 2).length,
+    asleep: nodes.filter((n) => n.hop > 2).length,
+  };
+  const lg = [
+    ['种子', C.amber, hopCount.seed],
+    ['1 跳', C.pink, hopCount.h1],
+    ['2 跳', C.violet, hopCount.h2],
+    ['休眠', '#3f5468', hopCount.asleep],
+  ];
+  let lx = x + 18;
+  lg.forEach(([s, col, n]) => {
+    ctx.fillStyle = hexA(col, .95); ctx.beginPath(); ctx.arc(lx, y + 44, 3, 0, 6.3); ctx.fill();
+    txt(s, lx + 7, y + 47, F(400, 10.5), hexA(C.dim, .9));
+    const nameW = measure(s, F(400, 10.5));
+    // 数字用对应颜色，紧跟名称，一眼能对上色点
+    const numTxt = fmt(n);
+    txt(numTxt, lx + 7 + nameW + 5, y + 47, MONO(600, 10.5), hexA(col, .95));
+    lx += 7 + nameW + 5 + measure(numTxt, MONO(600, 10.5)) + 14;
+  });
+  txt(`视窗 ${nodes.length} 节点 · ${(nodes._edges || []).length} 条边 · 3D`, x + w - 16, y + 47, MONO(400, 10), hexA(C.dim, .95), 'right');
+
+  // 底光
+
+
+  // 刻度环
+  ctx.save();
+  for (let i = 0; i < 2; i++) {
+    const r = 250 + i * 34;
+    ctx.setLineDash([4, 9]); ctx.lineDashOffset = -t * (i ? 14 : -20);
+    ctx.strokeStyle = hexA(i ? C.lime : C.violet, .030); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.3); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.strokeStyle = hexA(C.cyan, .045);
+  for (let i = 0; i < 48; i++) {
+    const ang = t * .18 + i * 6.283 / 48, r1 = 302, r2 = 302 + (i % 6 === 0 ? 8 : 3);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+    ctx.lineTo(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 裁到面板内，禁止节点/边溢出
+  ctx.save();
+  rr(x, y + 56, w, h - 76, 10); ctx.clip();
+
+  // ===== 3D：缓慢环绕 + 透视投影（相机在 +z 前方，远处更小更淡）=====
+  // 手动旋转：只有拖拽才转，页面静止时不动
+  const rotY = .22 + VIEW.yaw, rotX = -.15 + VIEW.pitch;
+  const cY = Math.cos(rotY), sY = Math.sin(rotY), cX = Math.cos(rotX), sX = Math.sin(rotX);
+  const CAM = 1500 / VIEW.zoom, FOC = 1520;
+  for (const n of nodes) {
+    const x1 = n.x * cY - n.z * sY, z1 = n.x * sY + n.z * cY;
+    const y1 = n.y * cX - z1 * sX, z2 = n.y * sX + z1 * cX;
+    const sc = FOC / (CAM + z2) * 1.02;
+    n.sx = cx + x1 * sc; n.sy = cy + y1 * sc; n.z2 = z2; n.rel = sc * CAM / FOC;
+  }
+  const dA = dz => clamp(1.12 - (dz + 260) / 520 * .72, .32, 1);   // 深度衰减
+
+  // 背景星尘：远景细点缓慢漂移，营造星云纵深
+  for (let i = 0; i < NEB.particleCount; i++) {
+    const h = hash('dust' + i);
+    const a0 = (h % 6283) / 1000, b0 = ((h >>> 9) % 3141) / 1000, rr0 = 420 + ((h >>> 3) % 340);
+    const drift = t * NEB.particleSpeed * (0.4 + ((h >>> 17) % 100) / 160);
+    const x3 = Math.cos(a0 + drift) * Math.sin(b0) * rr0;
+    const y3 = Math.sin(a0 + drift) * Math.sin(b0) * rr0 * .8;
+    const z3 = Math.cos(b0) * rr0;
+    const x1 = x3 * cY - z3 * sY, z1 = x3 * sY + z3 * cY;
+    const y1 = y3 * cX - z1 * sX, z2 = y3 * sX + z1 * cX;
+    const sc = FOC / (CAM + z2);
+    const da = clamp(1.05 - (z2 + 300) / 600 * .85, .12, 1);
+    const sz = (h % 3 === 0 ? 1.5 : 1) * clamp(sc * 1.1, .5, 1.8);
+    ctx.fillStyle = hexA('#9fc2dd', .20 * da);
+    ctx.fillRect(cx + x1 * sc, cy + y1 * sc, sz, sz);
+  }
+  // 中心核心：DSH 本体
+  {
+    const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, NEB.coreRadius * 2.1);
+    cg.addColorStop(0, hexA(C.cyan, .20)); cg.addColorStop(.5, hexA(C.violet, .07)); cg.addColorStop(1, hexA(C.violet, 0));
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(cx, cy, NEB.coreRadius * 2.1, 0, 6.3); ctx.fill();
+    ctx.fillStyle = hexA('#eaf6ff', .85);
+    ctx.beginPath(); ctx.arc(cx, cy, 3.4, 0, 6.3); ctx.fill();
+    txt('DSH', cx + 8, cy - 6, MONO(400, 9.5), hexA(C.dim, .95));
+  }
+  // 边（结构底图，按 3D 距离过滤 + 深度淡出）
+  // 边导入后可能有上万条，全量画会叠成一片亮网（节点再暗也压不住）。
+  // 这里降透明度并对密集边做确定性抽稀：边越多，抽样比例越低，维持总亮度大致恒定。
+  const EDGES = nodes._edges || [];
+  const edgeCap = 2600;
+  const edgeStride = EDGES.length > edgeCap ? Math.ceil(EDGES.length / edgeCap) : 1;
+  for (let ei = 0; ei < EDGES.length; ei += edgeStride) {
+    const [A, B] = EDGES[ei];
+    const d2 = (A.x - B.x) ** 2 + (A.y - B.y) ** 2 + (A.z - B.z) ** 2;
+    if (d2 > 240 * 240) continue;
+    const da = dA((A.z2 + B.z2) / 2);
+    const far = d2 > 170 * 170;
+    line(A.sx, A.sy, B.sx, B.sy, C.blue, 1, (far ? .022 : .042) * da);
+  }
+  // ---- 点亮子图的连线：DSH 核心 → 种子 → 1 跳 → 2 跳（细实线，不粗）----
+  // 之前只在动画期间用被抽稀的 nodes._edges（上限 2600 条）去过滤，绝大多数真实边被丢掉，
+  // 点亮的那几十个点就看起来是散的。这里直接查真实邻接表 adj：每个点亮节点连到
+  // 「比自己浅一跳」的最强邻居，一条就够，线细、不抢节点。
+  {
+    const seeds = [], h1 = [], h2 = [];
+    for (const n of nodes) {
+      if (n.hop === 0) seeds.push(n);
+      else if (n.hop === 1) h1.push(n);
+      else if (n.hop === 2) h2.push(n);
+    }
+    if (seeds.length || h1.length || h2.length) {
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.lineCap = 'round';
+      // 核心 → 种子（琥珀，最细的一点）
+      if (seeds.length) {
+        ctx.strokeStyle = hexA(C.amber, .20);
+        ctx.beginPath();
+        for (const n of seeds) { ctx.moveTo(cx, cy); ctx.lineTo(n.sx, n.sy); }
+        ctx.stroke();
+      }
+      // 种子 → 1 跳 / 1 跳 → 2 跳：各连一条最强父边
+      const linkUp = (list, col, alpha) => {
+        if (!list.length) return;
+        ctx.strokeStyle = hexA(col, alpha);
+        ctx.beginPath();
+        for (const n of list) {
+          let best = null, bw = -1;
+          for (const [id, w] of (adj.get(n.id) || [])) {
+            const m = nbyId.get(id);
+            if (!m || m.hop >= n.hop) continue;
+            if (w > bw) { bw = w; best = m; }
+          }
+          if (best) { ctx.moveTo(best.sx, best.sy); ctx.lineTo(n.sx, n.sy); }
+        }
+        ctx.stroke();
+      };
+      linkUp(h1, C.pink, .26);
+      linkUp(h2, C.violet, .20);
+      ctx.restore();
+    }
+  }
+  // 扩散波
+  if (a && el > .9 && el < 4.2) {
+    for (let k = 0; k < 3; k++) {
+      const rMax = Math.min(NET.w, NET.h) * .42;   // 波面不越过面板边界
+      const r = clamp((el - .9 - k * .35) / 2.2) * rMax;
+      if (r > 2) {
+        ctx.strokeStyle = hexA([C.amber, C.violet, C.blue][k], .13 * (1 - r / rMax));
+        ctx.lineWidth = 2 - k * .5;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.3); ctx.stroke();
+      }
+    }
+  }
+  // 节点（按深度从远到近绘制，近处更大更亮）
+  // 排序先看 hop：休眠点全部先画（当暗底），命中点后画 —— 否则一个近处的休眠点
+  // 会盖在种子/1 跳/2 跳上，把本就偏小的彩色光点压成一片灰白（"颜色没出来"）。
+  const orderKey = (n) => (n.hop > 2 ? 0 : 4 - n.hop);   // 眠 0 → 2跳 2 → 1跳 3 → 种子 4
+  const drawOrder = nodes.slice().sort((p, q) => (orderKey(p) - orderKey(q)) || (q.z2 - p.z2));
+  for (const n of drawOrder) {
+    const pop = n.seen ? 1 : clamp((performance.now() - (n.born || performance.now())) / 900);
+    n.seen = 1;
+    const asleep = n.hop > 2;
+    const col = asleep ? '#3f5468' : n.hop === 0 ? C.amber : n.hop === 1 ? C.pink : n.hop === 2 ? C.violet : C.mint;
+    const act = asleep ? 0 : n.act * (a ? clamp((el - .9 - n.hop * .4) / .4) : 1);
+    const da = dA(n.z2);
+    const rel = clamp(n.rel, .55, 1.35);
+    // 小而亮的光点：光晕只到 2.5~7px，靠高对比而非大面积发亮
+    // 自身亮度呼吸：点本体（填充 + 白芯 + 尺寸）随相位明暗，而不是只让外圈动
+    // 命中点的呼吸下限从 .18 提到 .45：原来看不清种子/1跳/2跳的点，
+    // 一半原因是它们正处在呼吸最暗相、面板再缩放一档就直接消失。
+    const tw = act > .04 ? (.45 + .55 * Math.pow(.5 + .5 * Math.sin(t * 3.4 + n.ph * 1.9 + n.hop * .9), 1.5)) : 1;
+    const baseR = NEB.minRadius + (NEB.maxRadius - NEB.minRadius) * Math.sqrt(n.wn || .3);
+    const hi = (VIEW.hover && VIEW.hover.id === n.id) ? 1.6 : (VIEW.pick && VIEW.pick.id === n.id ? 1.4 : 1);
+    const coreBase = (baseR * 0.5 + act * 1.2 * (.82 + .34 * tw)) * hi * (.4 + .6 * pop) * rel;
+    // 休眠点：原先放 1.55 倍且偏亮，2.8 万点铺满整屏显得又密又白。
+    // 收到 0.78 倍（相对常规点略小），配合下方更低的亮度，让「亮的是少数命中、其余是暗底」。
+    // 命中点整体放大一档（种子 2.0 / 1 跳 1.75 / 2 跳 1.5）：DSH 面板 iframe 只有
+    // ~1030px 宽，1:1 光栅化后 2~3px 的点会被缩到 1.5px 几乎看不见。
+    const core = coreBase * (n.hop === 0 ? 2.0 : n.hop === 1 ? 1.75 : n.hop === 2 ? 1.5 : (asleep ? 0.78 : 1));
+    if (act > .10) {
+      // 命中点（种子/1 跳/2 跳）光晕加一档：小点上纯色填充很难压住背景噪声，
+      // 靠带色的外圈才能让人一眼分出「种子 琥珀 / 1 跳 粉 / 2 跳 紫」。
+      const boost = asleep ? 1 : (n.hop === 0 ? 1.5 : n.hop === 1 ? 1.35 : 1.2);
+      const rad = (2.5 + act * 4.5 * (.6 + .5 * tw)) * 0.82 * rel * (asleep ? 1 : 1.15);
+      const g2 = ctx.createRadialGradient(n.sx, n.sy, 0, n.sx, n.sy, rad);
+      g2.addColorStop(0, hexA(col, clamp(.55 * boost, 0, 1) * act * da * (.35 + .65 * tw)));
+      g2.addColorStop(.45, hexA(col, clamp(.22 * boost, 0, 1) * act * da * (.35 + .65 * tw)));
+      g2.addColorStop(1, hexA(col, 0));
+      ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(n.sx, n.sy, rad, 0, 6.3); ctx.fill();
+    }
+    ctx.save();
+    ctx.globalAlpha = (.5 + .5 * pop) * (.55 + .45 * da);
+    if (act > .04) {
+      const bright = clamp((.18 + .82 * tw) * (.55 + .45 * act), .15, 1);
+      ctx.fillStyle = hexA(col, .55 + .45 * bright);
+    } else {
+      // 休眠亮度：原 .42+.50×(最高 .92) 太亮，2.8 万点叠在一起像一片白雾。
+      // 降到 .16+.30×（最高 .46），并给颜色本身降一档饱和，整体作为暗底。
+      const wb0 = .16 + .30 * (n.wn || .3);
+      const dimmed = (VIEW.hover && VIEW.hover.id !== n.id) ? .35 : 1;
+      ctx.fillStyle = hexA(col, (n.w < NEB.minWeight ? .08 : wb0) * dimmed);
+    }
+    ctx.beginPath(); ctx.arc(n.sx, n.sy, core, 0, 6.3); ctx.fill();
+    if (act > .20) {
+      // 白芯只用来点出"亮点"，命中点上收小一档，否则纯白会把臂色洗掉
+      const wb = clamp(.08 + .30 * act * (.3 + .7 * tw), .05, .62) * (asleep ? 1 : .5);
+      ctx.fillStyle = hexA('#ffffff', wb);
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, core * ((asleep ? .30 : .18) + .14 * tw), 0, 6.3); ctx.fill();
+    }
+    ctx.restore();
+    if ((VIEW.hover && VIEW.hover.id === n.id) || (VIEW.pick && VIEW.pick.id === n.id)) {
+      ctx.strokeStyle = hexA('#ffffff', .55); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, core + 4.5, 0, 6.3); ctx.stroke();
+    }
+    if (a && n.hop <= 2) {
+      // 种子/1 跳/2 跳都带一圈臂色外环：光点本身很小，密集暗底上纯色填充容易糊掉，
+      // 一圈同色描边才能一眼分出「琥珀 / 粉 / 紫」（种子最亮，2 跳最弱）。
+      const ringCol = n.hop === 0 ? C.amber : n.hop === 1 ? C.pink : C.violet;
+      const ringA = n.hop === 0 ? .66 : n.hop === 1 ? .54 : .44;
+      const rr2 = core + 2.4 + Math.sin(t * 3.4 + n.ph * 1.9) * (n.hop === 0 ? 2.2 : 1.2);
+      ctx.strokeStyle = hexA(ringCol, ringA * clamp((el - .9) / .4) * da);
+      ctx.lineWidth = n.hop === 0 ? 1.5 : 1.3;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, rr2, 0, 6.3); ctx.stroke();
+    }
+    // 轮换点亮：当前那张召回片段对应的本地节点加一圈白环 + 外晕，
+    // 呼吸相位与落点辉光一致（breath(t,0)），亮度走 SPOT.level 的淡入淡出。
+    if (SPOT.nodeId && n.id === SPOT.nodeId && SPOT.level > .02) {
+      const ph = breath(t, 0);
+      const k = SPOT.level * (.35 + .65 * ph);
+      const haloR = core + 5.5 + 2.6 * ph;
+      const hg = ctx.createRadialGradient(n.sx, n.sy, 0, n.sx, n.sy, haloR + 9);
+      hg.addColorStop(0, hexA('#ffffff', .16 * k));
+      hg.addColorStop(.45, hexA(n.hop === 0 ? C.amber : n.hop === 1 ? C.pink : C.violet, .12 * k));
+      hg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, haloR + 9, 0, 6.3);
+      ctx.fillStyle = hg; ctx.fill();
+      ctx.strokeStyle = hexA('#ffffff', .30 + .34 * k);
+      ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, haloR, 0, 6.3); ctx.stroke();
+    }
+  }
+  ctx.restore(); // 结束裁切
+  // 悬停命中：取离鼠标最近的投影点
+  if (VIEW.mouse) {
+    let best = null, bd = 14;
+    for (const n of nodes) {
+      const d = Math.hypot((n.sx || 0) - VIEW.mouse.x, (n.sy || 0) - VIEW.mouse.y);
+      if (d < bd) { bd = d; best = n; }
+    }
+    VIEW.hover = best;
+  }
+  // 详情卡：点击节点后显示它的记忆正文与权重
+  if (VIEW.pick) {
+    const pk = VIEW.pick;
+    const bx = x + 18, by = y + h - 96, bw = Math.min(560, w - 36), bh = 66;
+    panel(bx, by, bw, bh, C.pink, .5);
+    txt(pk.text || '(空)', bx + 12, by + 24, F(400, 12), hexA(C.text, .95));
+    txt(`w ${(pk.w || 0).toFixed(2)} · ${pk.fact} · hop ${pk.hop < 3 ? pk.hop : '—'} · ${(pk.id || '').slice(0, 8)}`,
+      bx + 12, by + 46, MONO(400, 10), hexA(C.dim, .85));
+    txt('点击空白处关闭', bx + bw - 12, by + 46, F(400, 9.5), hexA(C.dim, .9), 'right');
+  }
+
+  // 角落统计：无论是否召回过都显示种子/1跳/2跳计数（无召回时为 0），
+  // 避免"空闲"提示把三个数值一起藏起来、让人以为面板缺数据。
+  const foot = y + h - 16;
+  {
+    // 种子数必须报"真正被点亮的"而不是召回返回的条数：
+    // 后端可能返回 6 个种子而图里只挂上 4 个，旧写法会显示 6 让人以为缺了 2 个
+    const lit = nodes.filter(n => n.hop === 0 && n.act > 0).length;
+    const h1 = nodes.filter(n => n.hop === 1).length;
+    const h2 = nodes.filter(n => n.hop === 2).length;
+    // 命中总数必须等于「种子 + 1 跳 + 2 跳」：原来这里写 hop > 0 把种子漏掉了，
+    // 会出现 4 + 12 + 8 = 24 但显示 20 的怪现象。
+    const hopN = lit + h1 + h2;
+    // footer 遮罩：避免连线/粒子从文字上穿过
+    const mg = ctx.createLinearGradient(0, foot - 15, 0, foot + 5);
+    mg.addColorStop(0, 'rgba(8,12,20,0)');
+    mg.addColorStop(.55, 'rgba(8,12,20,.86)');
+    mg.addColorStop(1, 'rgba(8,12,20,.96)');
+    ctx.save(); ctx.fillStyle = mg;
+    ctx.fillRect(x + 10, foot - 15, w - 20, 20); ctx.restore();
+
+    txt(`种子 ${lit} · 1 跳 ${h1} · 2 跳 ${h2} · 图内点亮 ${hopN}`,
+      x + 18, foot, MONO(400, 10.5), hexA(C.dim, .85));
+    if (!a) {
+      txt('（空闲 · 点右上「试一次召回」）', x + 18 + measure(`种子 ${lit} · 1 跳 ${h1} · 2 跳 ${h2} · 显示命中 ${hopN}`, MONO(400, 10.5)) + 10,
+        foot, F(400, 10), hexA(C.dim, .6));
+    }
+  }
+  txt('A(v) = ∏ ( w^α · γ^hop )', x + w - 18, foot, MONO(400, 10), hexA(C.violet, .95), 'right');
+}
+
+/* 页脚 */
+function footer(t) {
+  // 页脚不再是"框内的一条分隔线"：拼上下文框底边 = H - FOOTER_H，
+  // 夜间任务行与它**平行**、间距固定 6px（11px 字的字顶 = 框底 + 6）。
+  const y = H - FOOTER_H;          // 拼上下文框底边
+  // 页脚只保留真实滚动统计这一行。
+  // 原来上面还有一行写死的「01:00 夜间任务 · 衰减归档 · 剪枝成边 · 赫布回放 ·
+  // MMR 去重 · engram_state 1915」——它不读任何数据、也不触发任何任务，只是旧面板
+  // 留下的装饰文案，极易让人误以为系统在 01:00 跑过这些维护，因此删除。
+  const row2Y = y + 14;            // 字顶 ≈ y + 6，与框底保持 6px 平行间距
+
+  const msg = S.mode === 'native'
+    ? `Hindsight ${S.bank || ''} · 记忆 ${fmt(S.counts.units)} · 关系 ${fmt(S.counts.links)} · 召回 ${fmt(S.counts.traces)} · CE 2.6s · embed 46 texts/s`
+    : `memory_units ${fmt(S.counts.units)} · memory_links ${fmt(S.counts.links)} · link_bridge ${fmt(S.counts.bridges)} · recall_trace ${fmt(S.counts.traces)} · CE 2.6s · embed 46 texts/s · DSH · Hindsight 1.2.0`;
+  ctx.font = MONO(400, 10.5);
+  const mw = ctx.measureText(msg).width;
+  ctx.save(); ctx.beginPath(); ctx.rect(24, y, W - 48, 22); ctx.clip();
+  const off = (t * 34) % (mw + 260);
+  txt(msg, W - 24 - off, row2Y, MONO(400, 10.5), hexA(C.dim, .95));
+  txt(msg, W - 24 - off + mw + 260, row2Y, MONO(400, 10.5), hexA(C.dim, .95));
+  ctx.restore();
+  // ---------- 进度条：随机心电图（ECG） ----------
+  {
+    const bx = 24, bw = W - 48 - 34, by = H - 16;
+
+    /* 心电谱：每个心搏 = P + QRS + T，位置/幅度/有无 T 波都随机；生成一次后缓存 */
+    const ecgKey = bx + '|' + bw + '|' + by;
+    if (!S.__ecg || S.__ecg.key !== ecgKey) {
+      const beats = [];
+      for (let x = 46; x < bw - 26; x += 84 + Math.random() * 108) {
+        beats.push({ x, amp: 5.4 + Math.random() * 1.6, tw: Math.random() < .82 ? 1 : 0 });
+      }
+      const g = (u, c, w) => Math.exp(-Math.pow((u - c) / w, 2));
+      const pts = new Float32Array(bw + 2);
+      for (let px = 0; px <= bw; px++) {
+        let dy = Math.sin(px * .9) * .16;                    // 极轻的基线毛刺
+        for (const b of beats) {
+          const u = (px - b.x) / 26;
+          if (u < -1.4 || u > 3.4) continue;
+          dy += b.amp * (
+            .17 * g(u, -.34, .16)                            // P 波
+            - .20 * g(u, -.11, .085)                         // Q
+            + 1.00 * g(u, 0, .070)                           // R（尖峰）
+            - .60 * g(u, .14, .095)                          // S
+            + .40 * b.tw * g(u, .70, .26)                    // T 波
+          );
+        }
+        pts[px] = dy;
+      }
+      S.__ecg = { key: ecgKey, pts };
+    }
+    const ecg = S.__ecg.pts;
+    const ecgY = px => by + ecg[Math.max(0, Math.min(bw, Math.round(px - bx)))];
+    const pathEcg = (x0, x1) => {
+      const a = Math.max(bx, Math.min(bx + bw, x0)), b2 = Math.max(bx, Math.min(bx + bw, x1));
+      if (b2 <= a) return false;
+      ctx.beginPath();
+      for (let px = a; px <= b2; px += 1) {
+        const yy = ecgY(px);
+        if (px === a) ctx.moveTo(px, yy); else ctx.lineTo(px, yy);
+      }
+      return true;
+    };
+    // 轨道（心电细线）
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,.070)'; ctx.lineWidth = .8;
+    pathEcg(bx, bx + bw); ctx.stroke();
+
+    const STEPS = 7, CYC = 12.0;                 // 12 秒走完 7 段，每段「冲一下 + 停一下」
+    const tt = t % CYC;
+    const seg = CYC / STEPS;
+    const idx = Math.min(STEPS - 1, Math.floor(tt / seg));
+    const frac = (tt - idx * seg) / seg;          // 段内进度 0..1
+    const MOVE = .48;                             // 前 48% 冲到位，剩下停顿
+    const mv = frac < MOVE ? ease(frac / MOVE) : 1;
+    const head = bx + ((idx + mv) / STEPS) * bw;
+    const hy = ecgY(head);                       // 头部所在心电高度
+
+    // 彩虹：色相沿轨道递进，并且随时间整体流动
+    const hueAt = px => (t * 55 + ((px - bx) / bw) * 300) % 360;
+
+    // 已走过的主体（线体比原来细 1px：2px → 1px，外圈辉光同步收窄 5px → 3.5px）
+    const bg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+    for (let q = 0; q <= 8; q++) {
+      const qx = bx + (q / 8) * bw;
+      bg.addColorStop(q / 8, `hsla(${hueAt(qx).toFixed(0)}, 92%, 62%, ${(.40 + .28 * (q / 8)).toFixed(2)})`);
+    }
+    if (head > bx) {
+      ctx.save();
+      ctx.shadowColor = `hsla(${hueAt(head).toFixed(0)}, 95%, 65%, .50)`;
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = bg; ctx.lineWidth = 3;
+      pathEcg(bx, head); ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = bg; ctx.lineWidth = .5;
+      pathEcg(bx, head); ctx.stroke();
+    }
+
+    // 发光头的拖尾：头部往后 90px 的彗尾，越靠近头越亮，跟着心电起伏
+    const TAIL = 90 + 60 * (frac < MOVE ? (1 - mv) : 1);
+    if (head - TAIL > bx) {
+      const tg = ctx.createLinearGradient(head - TAIL, 0, head, 0);
+      tg.addColorStop(0, `hsla(${hueAt(head).toFixed(0)}, 95%, 68%, 0)`);
+      tg.addColorStop(.45, `hsla(${hueAt(head).toFixed(0)}, 95%, 68%, .18)`);
+      tg.addColorStop(.82, `hsla(${hueAt(head).toFixed(0)}, 96%, 72%, .55)`);
+      tg.addColorStop(1, `hsla(${hueAt(head).toFixed(0)}, 98%, 80%, .95)`);
+      ctx.save();
+      ctx.shadowColor = `hsla(${hueAt(head).toFixed(0)}, 96%, 70%, .85)`;
+      ctx.shadowBlur = 13;
+      ctx.strokeStyle = tg; ctx.lineWidth = 4.5;
+      pathEcg(head - TAIL, head); ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = tg; ctx.lineWidth = 1.6;
+      pathEcg(head - TAIL, head); ctx.stroke();
+      ctx.restore();
+    }
+
+    // 分段刻度（跟着心电高度）
+    for (let k = 1; k < STEPS; k++) {
+      const px = bx + (k / STEPS) * bw;
+      ctx.fillStyle = hexA('#ffffff', k <= idx ? .18 : .07);
+      ctx.fillRect(px - .5, ecgY(px) - 4, 1, 8);
+    }
+
+    // 停顿瞬间的爆点：单次闪光 + 火花
+    const pf = frac >= MOVE ? Math.max(0, 1 - (frac - MOVE) / .34) : 0;
+    if (pf > 0) {
+      const pr = 4 + 34 * (1 - pf);
+      ctx.save();
+      ctx.shadowColor = `hsla(${hueAt(head).toFixed(0)}, 95%, 68%, ${(.85 * pf).toFixed(2)})`;
+      ctx.shadowBlur = 16 * pf;
+      ctx.strokeStyle = `hsla(${hueAt(head).toFixed(0)}, 95%, 70%, ${(.9 * pf).toFixed(2)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(head, hy + .5, pr, 0, 6.3); ctx.stroke();
+      ctx.restore();
+      for (let k = 0; k < 9; k++) {
+        const ang = (k / 9) * 6.283 + idx * 1.7;
+        const dist = (1 - pf) * (22 + (k % 3) * 12);
+        const sx = head + Math.cos(ang) * dist;
+        const sy = hy + Math.sin(ang) * dist * .8;
+        ctx.fillStyle = `hsla(${(hueAt(head) + (k % 3) * 55).toFixed(0) % 360}, 95%, 70%, ${(.85 * pf).toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 1.3 * pf + .4, 0, 6.3); ctx.fill();
+      }
+    }
+
+    // 头部亮点
+    const pulse = .55 + .45 * Math.sin(t * 6.0);
+    ctx.save();
+    ctx.shadowColor = `hsla(${hueAt(head).toFixed(0)}, 95%, 70%, .95)`; ctx.shadowBlur = 10 + 6 * pulse;
+    ctx.fillStyle = hexA('#ffffff', .92);
+    ctx.beginPath(); ctx.arc(head, hy + .5, 2.1 + .8 * pulse + 1.6 * pf, 0, 6.3); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+}
+
+
+/* 记忆库掉线时的一条明确提示（否则整屏都是 0，容易以为面板坏了） */
+function dbBanner(t) {
+  const x = NET.x + 16, y = NET.y + 56, w = NET.w - 32, h = 34;
+  const pulse = .55 + .25 * Math.sin(t * 3);
+  rr(x, y, w, h, 8);
+  ctx.fillStyle = 'rgba(248,113,113,.10)'; ctx.fill();
+  ctx.strokeStyle = hexA(C.red, .45 * pulse); ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = hexA(C.red, .95);
+  ctx.beginPath(); ctx.arc(x + 18, y + h / 2, 3.4, 0, 6.3); ctx.fill();
+  txt('记忆库未连接 · 数据源没有响应', x + 32, y + 22, F(400, 12.5), hexA(C.red, .95));
+  const msg = '面板照常运行，恢复后自动补数据（检查 Hindsight API 或 PostgreSQL）';
+  txt(msg, x + w - 16, y + 22, F(400, 11), hexA(C.mute, .9), 'right');
+}
+
+/* 没有 Hindsight 且本地库为空时的提示：这时整屏都是 0，不解释一句
+   就等于让用户以为插件坏了。数据一出现（units > 0）或切到 hybrid 自动消失。 */
+function emptyBanner(t) {
+  const x = NET.x + 16, y = NET.y + 56, w = NET.w - 32, h = 34;
+  const pulse = .55 + .25 * Math.sin(t * 2.2);
+  rr(x, y, w, h, 8);
+  ctx.fillStyle = 'rgba(251,191,36,.07)'; ctx.fill();
+  ctx.strokeStyle = hexA(C.amber, .30 + .12 * pulse); ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = hexA(C.amber, .95);
+  ctx.beginPath(); ctx.arc(x + 18, y + h / 2, 3.4, 0, 6.3); ctx.fill();
+  const title = '本地库为空 · 未接入 Hindsight';
+  txt(title, x + 32, y + 22, F(600, 12.5), hexA(C.amber, .95));
+  const msg = '面板只展示已有数据；本地引擎不会自动积累 —— 接入 Hindsight 或向 /remember 写入';
+  const room = w - 32 - measure(title, F(600, 12.5)) - 24;
+  if (room > 60) txt(fitText(msg, room, F(400, 11)), x + w - 16, y + 22, F(400, 11), hexA(C.dim, .95), 'right');
+}
+
+/* 统一的呼吸相位：落点辉光与「正在被点亮的召回片段」共用同一个频率，
+   这样球体上的光和卡片的微光看起来是同一口气。 */
+function breath(t, ph) { return .5 + .5 * Math.sin(t * 3 + (ph || 0) * .7); }
+
+/* ---------------- 召回片段轮换点亮 ----------------
+   规则：
+   - 只有在图里找得到本地节点的片段才有资格（Hindsight 片段没有本地节点，直接跳过）；
+   - 每片点亮 3 秒：0.6s 淡入 + 1.8s 保持 + 0.6s 淡出，缓动曲线，不跳变；
+   - 相邻片段不连续点亮（下一片与当前卡片序号至少差 2），避免并排一起闪；
+   - 优先挑选「邻居里种子/1 跳/2 跳更多」的节点（rich 越大越优先）。 */
+const SPOT = { key: '', list: [], cur: -1, nodeId: '', start: 0, level: 0 };
+const SPOT_PERIOD = 3000, SPOT_IN = 600, SPOT_HOLD = 1800;
+const easeInOut = (x) => { const v = clamp(x); return v * v * (3 - 2 * v); };
+
+function updateSpotlight(now) {
+  const a = S.anim;
+  if (!a || !a.results || !a.results.length) {
+    SPOT.cur = -1; SPOT.nodeId = ''; SPOT.level = 0; return;
+  }
+  const key = a.query + '|' + Math.round(a.t0 || 0);
+  if (SPOT.key !== key) {
+    // 节点还没做 3D 投影（sx 未生成）时先别建列表，否则这一帧会筛出空表、
+    // 然后 key 已经锁住，就再也不会重建 —— 表现为"轮换完全不工作"。
+    if (!nodes.length || nodes[0].sx === undefined) return;
+    SPOT.key = key;
+    const list = [];
+    for (let i = 0; i < Math.min(a.results.length, CARD_COUNT); i++) {
+      const r = a.results[i];
+      if (!r || r.source === 'hindsight') continue;
+      const n = r.id ? nbyId.get(String(r.id)) : null;
+      if (!n) continue;
+      // 轮换点亮的就是「这张片段自己在图里的那个节点」：
+      // 它平时是暗点，轮到时被光晕临时点亮 —— 这才是"把召回片段点亮"的观感。
+      // （Hindsight 片段没有本地节点，前面已经跳过。）
+      // 只排除投影跑到星云可视区之外的节点，否则光环画在裁剪区外等于没画。
+      const spread = Math.min(NET.w, NET.h) * .52;
+      if (!(Math.hypot(n.sx - NET.cx, n.sy - NET.cy) <= spread)) continue;
+      // 「种子/1 跳/2 跳 更多的优先」：看这个节点在点亮子图里的邻接权重
+      let rs = 0, r1 = 0, r2 = 0;
+      for (const [id] of (adj.get(n.id) || [])) {
+        const k = nbyId.get(id);
+        if (!k) continue;
+        if (k.hop === 0) rs++;
+        else if (k.hop === 1) r1++;
+        else if (k.hop === 2) r2++;
+      }
+      const rich = 3 * rs + 2 * r1 + r2;
+      list.push({ i, rich, nodeId: n.id });
+    }
+    list.sort((p2, q2) => q2.rich - p2.rich);
+    SPOT.list = list;
+    SPOT.cur = -1; SPOT.nodeId = ''; SPOT.start = now - SPOT_PERIOD; SPOT.level = 0;
+  }
+  if (!SPOT.list.length) {
+    // 这一轮没有可点亮的片段（例如结果全是 Hindsight）：把 key 放开，后续帧再试
+    SPOT.key = ''; SPOT.cur = -1; SPOT.nodeId = ''; SPOT.level = 0; return;
+  }
+  let el = now - SPOT.start;
+  if (SPOT.cur < 0 || el >= SPOT_PERIOD) {
+    const prev = SPOT.cur;
+    // 候选 = 除当前这张以外的所有片段；相邻卡片降权到 30%（不是禁止）。
+    // 因为同一时刻只会亮一张，"相邻不重叠"本来就不会同时闪；
+    // 如果像之前那样硬性禁止相邻，3 张候选里中间那张永远轮不到。
+    const use = prev < 0 ? SPOT.list : SPOT.list.filter((e) => e.i !== prev);
+    let totalW = 0;
+    for (const e of use) {
+      const adj = prev >= 0 && Math.abs(e.i - prev) < 2;
+      totalW += (1 + e.rich) * (adj ? .3 : 1);
+    }
+    let r = Math.random() * totalW;
+    let pick = use[use.length - 1];
+    for (const e of use) {
+      const adj = prev >= 0 && Math.abs(e.i - prev) < 2;
+      r -= (1 + e.rich) * (adj ? .3 : 1);
+      if (r <= 0) { pick = e; break; }
+    }
+    SPOT.cur = pick.i;
+    SPOT.nodeId = pick.nodeId;
+    // 跨周期时把余量带过去，保持严格的 3s 节奏，不累积漂移
+    SPOT.start = el >= SPOT_PERIOD ? SPOT.start + SPOT_PERIOD * Math.floor(el / SPOT_PERIOD) : now;
+    el = now - SPOT.start;
+  }
+  let lv;
+  if (el < SPOT_IN) lv = easeInOut(el / SPOT_IN);
+  else if (el < SPOT_IN + SPOT_HOLD) lv = 1;
+  else lv = 1 - easeInOut((el - SPOT_IN - SPOT_HOLD) / (SPOT_PERIOD - SPOT_IN - SPOT_HOLD));
+  SPOT.level = clamp(lv);
+}
+/* 连线落点辉光：左栏与右侧共用同一套样式（呼吸光晕 + 小环 + 中心点）。
+   之前右侧召回线走的是 PIPE 的另一套更大的光环，跟左边对不上，所以单独抽出来。 */
+function drawLandingGlow(x, y, col, t, phase) {
+  const pulse = breath(t, phase);
+  const glowR = 17 + 5 * pulse;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+  g.addColorStop(0, hexA(col, .36 + .22 * pulse));
+  g.addColorStop(.38, hexA(col, .12 + .09 * pulse));
+  g.addColorStop(1, hexA(col, 0));
+  ctx.beginPath(); ctx.arc(x, y, glowR, 0, 6.283);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = hexA(col, .28 + .14 * pulse); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 6.283); ctx.stroke();
+  ctx.fillStyle = hexA(col, .70);
+  ctx.beginPath(); ctx.arc(x, y, 1.4, 0, 6.283); ctx.fill();
+}
+/* ---------------- 主循环 ---------------- */
+
+/* ===== 板块 → 星云 / 管线 / 证据 / 拼上下文：按 panel-links-preview 的方案渲染 =====
+   写入：实线 + 彗尾粒子朝内 + 星云入口呼吸环
+   召回：虚线 + 彗尾粒子朝外 + 球面切口弧
+   query 芯片：左侧竖条 + 右侧输出点 + 呼吸外发光 */
+function drawBoardLinks(t) {
+  const P0 = nodes;
+  if (!P0 || !P0.length || P0[0].sx === undefined) return;
+  const TAU = 6.283185307;
+  const PTS = P0.map(n => ({ x: n.sx, y: n.sy, hop: n.hop }));
+  const a = S.anim;
+  const el = a ? (performance.now() - a.t0) / 1000 : 99;
+
+  const ringPoint = (deg) => {
+    const R = Math.min(NET.w, NET.h) * .40, ang = deg * Math.PI / 180;
+    return { x: NET.cx + Math.cos(ang) * R, y: NET.cy + Math.sin(ang) * R };
+  };
+  // 落点优先吸到「休眠」节点上：点亮节点（hop 0/1/2）正被用户盯着看，
+  // 连线头和彗尾粒子落上去会把它盖住。外圈壳层本来就是暗点，落上去几乎无损。
+  // 外壳半径每帧只算一次：cloudEdgeF 一帧会被调用 20 多次，之前每次都重扫 28k 个点。
+  let rMaxAll = 1;
+  for (const p of PTS) { const r = Math.hypot(p.x - NET.cx, p.y - NET.cy); if (r > rMaxAll) rMaxAll = r; }
+  const cloudEdgeF = (ideal, maxX) => {
+    const rMax = rMaxAll;
+    const rMin = rMax * .78;
+    const okX = p => (maxX === undefined || p.x <= maxX);
+    // 两轮筛选：先只要休眠节点，实在没有再退回全部节点
+    const pick = (preferAsleep) => {
+      let best = null, bd = 1e18;
+      for (const p of PTS) {
+        const r = Math.hypot(p.x - NET.cx, p.y - NET.cy);
+        if (r < rMin) continue;
+        if (preferAsleep && p.hop <= 2) continue;
+        if (!okX(p)) continue;
+        const d = (p.x - ideal.x) ** 2 + (p.y - ideal.y) ** 2;
+        if (d < bd) { bd = d; best = p; }
+      }
+      return best;
+    };
+    let best = pick(true) || pick(false);
+    if (!best) best = ideal;
+    // 落点统一收窄到「暗点外壳带」的中线：外缘 rMax、内缘 rMin = 0.78·rMax，
+    // 中线 = (rMax + rMin) / 2 ≈ 0.89·rMax。所有连线都用同一半径，
+    // 左右天然对称，也不会再贴在壳层最外沿的暗点上。
+    const dx = best.x - NET.cx, dy = best.y - NET.cy, L = Math.hypot(dx, dy) || 1;
+    const k = (rMax * .89) / L;
+    return { x: NET.cx + dx * k, y: NET.cy + dy * k };
+  };
+  const bez = (p0, p1, p2, p3, k) => {
+    const mk = 1 - k;
+    return {
+      x: mk * mk * mk * p0.x + 3 * mk * mk * k * p1.x + 3 * mk * k * k * p2.x + k * k * k * p3.x,
+      y: mk * mk * mk * p0.y + 3 * mk * mk * k * p1.y + 3 * mk * k * k * p2.y + k * k * k * p3.y,
+    };
+  };
+  const polyPoint = (pts, u) => {
+    const seg = []; let L = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      seg.push(d); L += d;
+    }
+    let target = u * L;
+    for (let i = 0; i < seg.length; i++) {
+      if (target <= seg[i] || i === seg.length - 1) {
+        const k = seg[i] ? Math.min(1, target / seg[i]) : 0;
+        return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * k, y: pts[i].y + (pts[i + 1].y - pts[i].y) * k };
+      }
+      target -= seg[i];
+    }
+    return pts[pts.length - 1];
+  };
+  const topEntry = (lk) => {
+    const x = clamp(lk.from.x, NET.x + 90, NET.x + NET.w * .62);
+    return cloudEdgeF({ x, y: NET.cy - Math.min(NET.w, NET.h) * .30 });
+  };
+  const ctrlFor = (lk, b) => {
+    const A = lk.from, off = lk.dir === 'in' ? 0 : 12;
+    if (lk.side === 'L') {
+      const c1 = { x: A.x + 18 + off * .5, y: A.y + (b.y - A.y) * .14 };
+      const c2 = { x: clamp(NET.x + 20 + off, NET.x + 4, b.x - 20), y: b.y };
+      return [c1, c2];
+    }
+    if (lk.side === 'R') {
+      // 右栏（数据链）→ 星云：两条线共用同一形状的控制点，
+      // 只随端点整体上下平移 —— 这样它们全程等距，是真正的平行双线。
+      const kx = clamp(Math.abs(A.x - b.x) * .38, 16, 96);
+      const kx2 = clamp(Math.abs(A.x - b.x) * .24, 10, 56);
+      const c1 = { x: A.x - kx, y: A.y + (b.y - A.y) * .12 };
+      const c2 = { x: b.x + kx2, y: b.y };
+      return [c1, c2];
+    }
+    const band = NET.y - 26 - off * .6;
+    return [{ x: A.x + off * .3, y: band }, { x: b.x + off * .4, y: band }];
+  };
+
+  // ---- 左栏 6 卡 × 写入/召回 ----
+  const rail = S.railRects || [];
+  const LINKS = [];
+  rail.forEach((r, i) => {
+    const y = r.y + r.h / 2;
+    // 星云落点：以星云中心为基准，12 条全部向左侧中间（180°）收窄；
+    // 两组都按「卡片从上到下 → 落点从高到低」单调排列（角度递减），这样线不会互相穿插；
+    // 相邻 2.5° 均匀铺开，配合下方 used 避让保证落点间距不重合
+    const po = Math.min(16, Math.max(10, r.h * .2));   // 出入端口各自的垂直偏移
+    LINKS.push({ from: { x: r.x + r.w, y: y - po }, col: r.col, side: 'L', dir: 'in', theta: 178.75 - i * 2.5 });
+    LINKS.push({ from: { x: r.x + r.w, y: y + po }, col: r.col, side: 'L', dir: 'out', theta: 193.75 - i * 2.5 });
+  });
+
+  /* ---- 右侧 8 条线统一排布 ----
+     右侧同时有「数据链 4 张小卡」和「召回片段 4 张小卡」两组线（各 4 条）。
+     之前两组各按自己的角度铺，落点混在一起就互相穿插。
+     现在把所有右侧锚点**按源 y 排序**后，在右外壳上均匀分配角度：
+     同一半径 → 同一弧长间距；源在上→落点在上，源在下→落点在下，8 条线不会交叉。 */
+  // 落点间距与左栏完全一致：左栏 12 条是按「弧上 40px 一格」铺的，这里用同一间距，
+  // 换算成角度就是 stepRad = 40 / 中线半径，8 条 → 总张角 7 格。
+  const midRadius = Math.max(1, rMaxAll * .89);
+  S.__midR = midRadius;   // 中线半径，供需要时复用
+  const stepRad = 40 / midRadius;
+  // 右侧 8 个落点直接取精确圆弧（中线半径），不再吸附到最近节点 ——
+  // 吸附会把角度带偏，间距就变得忽宽忽窄；左栏是先吸附再重新等距铺开的，
+  // 走的是"等弧长"，所以这里也用纯几何点，才能和左栏间距一致。
+  const arcAt = (th) => ({ x: NET.cx + Math.cos(th) * midRadius, y: NET.cy + Math.sin(th) * midRadius });
+  const rightPlan = (() => {
+    const items = [];
+    (S.chainRows || []).forEach((row) => items.push({ y: row.y, kind: 'chain', col: row.col }));
+    const nR = Math.min(((S.anim && S.anim.results) || []).length, CARD_COUNT);
+    for (let i = 0; i < nR; i++) items.push({ y: cardMid(i), kind: 'recall', i, col: cardTint(i) });
+    items.sort((p, q) => p.y - q.y);
+    const n = items.length;
+    const half = clamp((stepRad * Math.max(0, n - 1)) / 2, .12, 1.1);
+    items.forEach((it, k) => { it.theta = n > 1 ? -half + (2 * half * k) / (n - 1) : 0; });
+    return items;
+  })();
+  // ---- 右栏「数据链」4 张小卡 ↔ 星云：每张卡一条**单向实线** ----
+  // 卡片之间的数据关系是"这张图怎么铺出来的"（来源 / 分层 / 边 / 活性），
+  // 按连线协议：单向通信只画一条实线；颜色取该卡自己的颜色。
+  // 起点在每张小卡**自己的左缘**（不是框体边），落点吸到右外壳中线；
+  // 4 个落点按行序扇开（-24°…+24°），出口/入口都水平，四条线不交叉。
+  {
+    // 落点回到「每张小卡左侧边缘的竖直中点」：卡片左缘 x = CHAIN_BOX.x + 12，
+    // 竖直中点就是行中心 y。标签右侧那套空档锚点已撤销。
+    rightPlan.filter((it) => it.kind === 'chain').forEach((it) => {
+      LINKS.push({
+        from: { x: CHAIN_BOX.x + 12, y: it.y },
+        col: it.col,
+        side: 'R', dir: 'in',
+        theta: it.theta * 180 / Math.PI,
+        _target: arcAt(it.theta),
+      });
+    });
+  }
+
+  // ---- 顶部管线 / 证据 / 拼上下文：折线 ----
+  const st = S.stageRects || [];
+  const PIPE = [];
+  let Q = null, lane1 = 0, lane2 = 0;
+  if (st.length === 4) {
+    const box = k => ({ x: st[k].x, w: st[k].w, cx: st[k].x + st[k].w / 2, top: st[k].y, bot: st[k].y + st[k].h, cy: st[k].y + st[k].h / 2 });
+    const E = box(0), H = box(1), B = box(2), R = box(3);
+    Q = { x: RET.x + 16, y: RET.y + 44, w: 78, h: 28 };   // 底边不动，上边界再上抬 5px
+    lane1 = Q.y - 4;                   // 查询→EMBED 车道
+    lane2 = Q.y + Q.h + 4;             // 查询→BM25 车道
+    const busA = E.top - 8;            // 向量臂总线（HNSW→RRF）
+    const busB = E.top - 16;           // 词法臂总线（BM25→RRF）
+    // 两条线从芯片右缘出发，平行向右，再各自垂直落进 EMBED / BM25
+    const qMid = Q.y + Q.h / 2;
+    lane1 = Q.y + Q.h / 2; lane2 = RET.y + 60;
+    PIPE.push({ pts: [{ x: Q.x + Q.w, y: lane1 }, { x: E.cx, y: lane1 }, { x: E.cx, y: E.top - 1 }], col: C.cyan });
+    PIPE.push({ pts: [{ x: Q.x + Q.w, y: qMid }, { x: Q.x + Q.w + 14, y: lane2 }, { x: B.cx - 22, y: lane2 }, { x: B.cx - 22, y: B.top - 1 }], col: C.cyan });
+    PIPE.push({ pts: [{ x: E.x + E.w + 1, y: E.cy - 2.6 }, { x: H.x - 1, y: H.cy - 2.6 }], col: C.cyan });
+    PIPE.push({ pts: [{ x: H.x - 1, y: H.cy + 2.6 }, { x: E.x + E.w + 1, y: E.cy + 2.6 }], col: C.violet, rev: true });
+    PIPE.push({ pts: [{ x: H.cx, y: H.top - 1 }, { x: H.cx, y: busA }, { x: R.cx - 22, y: busA }, { x: R.cx - 22, y: R.top - 1 }], col: C.violet });
+    PIPE.push({ pts: [{ x: B.cx, y: B.top - 1 }, { x: B.cx, y: busB }, { x: R.cx, y: busB }, { x: R.cx, y: R.top - 1 }], col: C.lime });
+    PIPE.push({ pts: [{ x: R.cx + 22, y: R.top - 1 }, { x: R.cx + 22, y: busB - 10 }, { x: B.cx + 22, y: busB - 10 }, { x: B.cx + 22, y: B.top - 1 }], col: C.amber });
+    // RRF → 星云（整条管线的出口）
+    LINKS.push({ from: { x: R.cx, y: R.bot }, col: C.amber, side: 'T', dir: 'in' });
+  }
+
+  // 星云 → 召回卡片：按**真实召回条数**连线（实线、粒子向内流；端点落在小卡左缘）
+  rightPlan.filter((it) => it.kind === 'recall').forEach((it) => {
+    const pt = arcAt(it.theta);
+    PIPE.push({ col: it.col, neb: pt, pts: [pt, { x: CARDS.x + 12, y: cardMid(it.i) }] });
+  });
+  // 召回片段 → 拼上下文：选中的片段拼进上下文（纵向汇流）
+  PIPE.push({
+    col: C.amber,
+    pts: [
+      { x: CARDS.x + CARDS.w - 46, y: CARDS.y + CARDS.h + 1 },
+      { x: CARDS.x + CARDS.w - 46, y: CTX.y - 8 },
+      { x: CTX.x + CTX.w - 46, y: CTX.y - 8 },
+      { x: CTX.x + CTX.w - 46, y: CTX.y + 1 },
+    ],
+  });
+  // 数据链 → 召回片段 / 拼上下文：库口统计是这两块的上游。
+  // 走线按「从框体右侧出线」：右缘出来 → 沿右栏外侧的走线道（+12px）垂直向下
+  // → 下面框体的右缘接入；不再从数据链框体正下方钻出来、也不压住卡片区。
+  {
+    const busX = CHAIN_BOX.x + CHAIN_BOX.w + 12;
+    const y0 = CHAIN_BOX.y + Math.round(CHAIN_BOX.h * .55);   // 右缘出线高度
+    const yIn = CARDS.y + 30;                                  // 并入召回片段
+    const y1 = CTX.y + Math.round(CTX.h * .45);                // 汇入拼上下文
+    PIPE.push({
+      col: C.amber,
+      pts: [
+        { x: CHAIN_BOX.x + CHAIN_BOX.w, y: y0 },
+        { x: busX, y: y0 },
+        { x: busX, y: y1 },
+        { x: CTX.x + CTX.w, y: y1 },
+      ],
+    });
+    // 支路：在召回片段右侧并入（起点落在主干上，自动形成 T 形接点）
+    PIPE.push({
+      col: C.amber,
+      pts: [
+        { x: busX, y: yIn },
+        { x: CARDS.x + CARDS.w, y: yIn },
+      ],
+    });
+  }
+
+  // ---- query 芯片 ----
+  if (Q) {
+    const pulse = .5 + .5 * Math.sin(t * 2.2);
+    const cX = Q.x + Q.w / 2, cY = Q.y + Q.h / 2;
+    const g = ctx.createRadialGradient(cX, cY, 2, cX, cY, 48);
+    g.addColorStop(0, hexA(C.cyan, .16 + .10 * pulse)); g.addColorStop(1, hexA(C.cyan, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cX, cY, 48, 0, TAU); ctx.fill();
+    rr(Q.x, Q.y, Q.w, Q.h, 6);
+    ctx.fillStyle = 'rgba(11,20,31,.92)'; ctx.fill();
+    ctx.strokeStyle = hexA(C.cyan, .55 + .25 * pulse); ctx.lineWidth = 1.2; ctx.stroke();
+    // 左侧标记：带闪烁光晕的光点（原来是竖线）
+    const dp = .5 + .5 * Math.sin(t * 3.2);
+    const dX = Q.x + 12, dY = Q.y + Q.h / 2;
+    const dR = 9 + 3 * dp;
+    const dg = ctx.createRadialGradient(dX, dY, 0, dX, dY, dR);
+    dg.addColorStop(0, hexA(C.cyan, .58 + .32 * dp));
+    dg.addColorStop(.38, hexA(C.cyan, .18 + .14 * dp));
+    dg.addColorStop(1, hexA(C.cyan, 0));
+    ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(dX, dY, dR, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(dX, dY, 2.6, 0, TAU);
+    ctx.fillStyle = hexA(C.cyan, .78 + .22 * dp); ctx.fill();
+    txt('H-C-D', Q.x + 25, Q.y + 18, MONO(600, 11.5), '#eaf2fb');
+  }
+  function w0(q) { return Math.max(80, RET.x + RET.w - 240 - (q.x + q.w + 10)); }
+
+  // ---- 折线（管线 / 证据 / 拼上下文）----
+  PIPE.forEach((p, i) => {
+    const pts = p.pts.slice();
+    if (p.deg !== undefined) {
+      const edge = cloudEdgeF(ringPoint(p.deg));
+      if (p.rev || p.edgeEnd) pts[pts.length - 1] = edge; else pts[0] = edge;
+    }
+    if (p.horiz) {
+      const refY = p.yRef !== undefined ? p.yRef : (p.rev ? pts[pts.length - 1].y : pts[0].y);
+      for (let k = 0; k < pts.length; k++) pts[k] = { x: pts[k].x, y: refY };
+    }
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    pts.forEach((q, k) => (k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+    if (p.dashed) ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = hexA(p.col, p.dashed ? .14 : .22);
+    ctx.lineWidth = p.dashed ? 1.1 : 1.2; ctx.stroke();
+    ctx.setLineDash([]);
+    for (let j = 0; j < 2; j++) {
+      const u0 = (t * .34 + j * .5 + i * .19) % 1;
+      const u = p.rev ? 1 - u0 : u0;
+      const pos = polyPoint(pts, u);
+      for (let b = 4; b >= 1; b--) {
+        const q = polyPoint(pts, p.rev ? Math.min(1, u + b * .012) : Math.max(0, u - b * .012));
+        ctx.beginPath(); ctx.arc(q.x, q.y, 2.4 - b * .35, 0, TAU);
+        ctx.fillStyle = hexA(p.col, .34 - b * .06); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, 3.2, 0, TAU);
+      ctx.fillStyle = hexA(p.col, .14); ctx.fill();
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, 1.5, 0, TAU);
+      ctx.fillStyle = hexA(p.col, .95); ctx.fill();
+    }
+    const ends = [pts[0], pts[pts.length - 1]];
+    // 与星云接触的那一端：与左栏同一套呼吸光晕（不再用更大更亮的一版）
+    if (p.neb || p.deg !== undefined) {
+      const nb = p.neb ? p.neb : ((p.rev || p.edgeEnd) ? pts[pts.length - 1] : pts[0]);
+      drawLandingGlow(nb.x, nb.y, p.col, t, i * .9);
+    }
+    ends.forEach(pt => {
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 3.4, 0, TAU);
+      ctx.fillStyle = hexA(p.col, .12); ctx.fill();
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.2, 0, TAU);
+      ctx.fillStyle = hexA(p.col, .85); ctx.fill();
+    });
+    ctx.restore();
+  });
+
+  // ---- 左栏 12 条落点：先全部吸附到外壳，再按 y 排序 + 等距重排 ----
+  // 吸附会打乱上下顺序（外壳节点位置不规则，常有多个理想点吸到同一颗节点），
+  // 所以先按 y 排序，再把 12 个落点在外壳弧上均匀铺开：顺序不交叉、间距一致。
+  {
+    const railLinks = LINKS.filter(lk => lk.side === 'L');
+    const maxX = NET.x + NET.w * .42;
+    const ps = railLinks.map(lk => cloudEdgeF(ringPoint(lk.theta), maxX));
+    ps.sort((p, q) => p.y - q.y);
+    const Rm = ps.reduce((s, p) => s + Math.hypot(p.x - NET.cx, p.y - NET.cy), 0) / ps.length;
+    let yMin = ps[0].y, yMax = ps[ps.length - 1].y;
+    // 沿外壳弧等弧长铺开：间距约等于一个休眠光点直径（44px 内自适应），
+    // 用角度而不是 y 来分布，避免拉到弧顶/弧底时 x 塌到星云中心
+    const n = ps.length;
+    const GAP = Math.min(40, (Rm * 2.4) / (n - 1));     // 最多铺 ±69°
+    const dTh = (GAP * (n - 1)) / Rm;
+    for (let k = 0; k < n; k++) {
+      const th = Math.PI + dTh / 2 - (dTh * k) / (n - 1);
+      ps[k] = { x: NET.cx + Rm * Math.cos(th), y: NET.cy + Rm * Math.sin(th) };
+    }
+    railLinks.forEach((lk, k) => { lk._target = ps[k]; });
+    S.linkTargets = ps.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  }
+
+  // ---- 左栏链路（三次贝塞尔，写入/召回两套通道）----
+  // 只允许画在「左栏右缘 → 证据面板左缘」这条走廊里，越界一律裁掉
+  const used = [];
+  LINKS.forEach((lk, i) => {
+    ctx.save();
+    if (lk.side === 'L') {
+      ctx.beginPath();
+      ctx.rect(0, RET.y - 6, CARDS.x - 2, CTX.y - RET.y + 12);
+      ctx.clip();
+    } else if (lk.side === 'R') {
+      // 右走廊：从星云中心线到数据链卡左缘，别的区域一律不画
+      ctx.beginPath();
+      // 端点就在卡片左缘（CHAIN_BOX.x + 12），裁剪框必须把这一小段也包进去，
+      // 否则线会被裁在框体外侧 10px，看起来"没接上卡片"。
+      ctx.rect(NET.cx, RET.y - 6, CHAIN_BOX.x + 15 - NET.cx, CTX.y - RET.y + 12);
+      ctx.clip();
+    }
+    let target = lk.side === 'T' ? topEntry(lk)
+      : (lk._target || cloudEdgeF(ringPoint(lk.theta), lk.side === 'L' ? NET.x + NET.w * .42 : undefined));
+    // 落点避让：与已有端点太近就沿圆周错开，避免叠成一条珠子（左栏 12 条已在上面排好序，不再二次挪动）
+    let guard = 0;
+    while (!lk._target && used.some(u => Math.hypot(u.x - target.x, u.y - target.y) < 11) && guard < 14) {
+      const ang = Math.atan2(target.y - NET.cy, target.x - NET.cx) + .06;
+      const R0 = Math.hypot(target.x - NET.cx, target.y - NET.cy);
+      target = { x: NET.cx + Math.cos(ang) * R0, y: NET.cy + Math.sin(ang) * R0 };
+      guard++;
+    }
+    used.push(target);
+    const c = ctrlFor(lk, target);
+    const c1 = c[0], c2 = c[1];
+    const isIn = lk.dir === 'in';
+    // 板块侧的出/入端口：一个实心点 + 一圈淡光，两个端口上下分开、互不重叠
+    ctx.beginPath(); ctx.arc(lk.from.x, lk.from.y, 7, 0, TAU);
+    ctx.fillStyle = hexA(lk.col, .13); ctx.fill();
+    ctx.beginPath(); ctx.arc(lk.from.x, lk.from.y, isIn ? 2.6 : 2.1, 0, TAU);
+    ctx.fillStyle = hexA(lk.col, isIn ? .92 : .62); ctx.fill();
+    if (!isIn) { ctx.beginPath(); ctx.arc(lk.from.x, lk.from.y, 4.2, 0, TAU); ctx.strokeStyle = hexA(lk.col, .5); ctx.lineWidth = 1; ctx.stroke(); }
+    ctx.save();
+    ctx.setLineDash(isIn ? [] : [7, 5]);
+    ctx.beginPath();
+    ctx.moveTo(lk.from.x, lk.from.y);
+    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, target.x, target.y);
+    ctx.strokeStyle = hexA(lk.col, isIn ? .20 : .14);
+    ctx.lineWidth = isIn ? 1.4 : 1.1;
+    ctx.stroke();
+    ctx.restore();
+
+    const NP = isIn ? 4 : 3;
+    for (let p = 0; p < NP; p++) {
+      const raw = ((t * .22 + p / NP + i * .07) % 1);
+      const k = isIn ? raw : 1 - raw;
+      const pt = bez(lk.from, c1, c2, target, k);
+      // 与四段管线上方同一套：4 段彗尾
+      for (let b = 4; b >= 1; b--) {
+        const kk = k - (isIn ? b : -b) * .012;
+        if (kk < 0 || kk > 1) break;
+        const q = bez(lk.from, c1, c2, target, kk);
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, 2.4 - b * .35, 0, TAU);
+        ctx.fillStyle = hexA(lk.col, .34 - b * .06); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 3.2, 0, TAU);
+      ctx.fillStyle = hexA(lk.col, .14); ctx.fill();
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 1.5, 0, TAU);
+      ctx.fillStyle = hexA(lk.col, .95); ctx.fill();
+    }
+
+    // 星云入口：写入呼吸环 / 召回球面切口弧
+    ctx.save();
+    ctx.translate(target.x, target.y);
+    const pulse = .5 + .5 * Math.sin(t * 3 + i);
+    // 接触光晕（左栏 12 条链路落点）
+    const glowR = 17 + 5 * pulse;
+    const glowG = ctx.createRadialGradient(0, 0, 0, 0, 0, glowR);
+    glowG.addColorStop(0, hexA(lk.col, .36 + .22 * pulse));
+    glowG.addColorStop(.38, hexA(lk.col, .12 + .09 * pulse));
+    glowG.addColorStop(1, hexA(lk.col, 0));
+    ctx.beginPath(); ctx.arc(0, 0, glowR, 0, TAU);
+    ctx.fillStyle = glowG; ctx.fill();
+    if (isIn) {
+      drawLandingGlow(0, 0, lk.col, t, i);
+    } else {
+      const ea = Math.atan2(target.y - NET.cy, target.x - NET.cx);
+      // 注意：此处 ctx 已 translate 到 target，圆弧圆心必须减掉该平移量，否则会画到面板外
+      const acx = NET.cx - target.x, acy = NET.cy - target.y;
+      const rr0 = Math.hypot(target.x - NET.cx, target.y - NET.cy);
+      // 弧盖只做「贴着球面的小月牙」（约 12px 长），避免相邻触点的弧连成一条线
+      const half = Math.min(.06, 4 / Math.max(1, rr0));
+      ctx.strokeStyle = hexA(lk.col, .30 + .18 * pulse);
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(acx, acy, rr0 - 3.2, ea - half, ea + half);
+      ctx.strokeStyle = hexA(lk.col, .26 + .14 * pulse); ctx.lineWidth = 1.1; ctx.stroke();
+      ctx.fillStyle = hexA(lk.col, .55);
+      ctx.beginPath(); ctx.arc(0, 0, 1.3, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+    ctx.restore();
+  });
+}
+
+function frame() {
+  // 冷启动加载态：分阶段文案，让用户区分「本地卡了」还是「在等外脑」。
+  //   booted=false → 「正在唤醒本地记忆 …」
+  //   booted=true 但 Hindsight 还没连上 → 「本地记忆已就绪，正在连接外脑 …」
+  //   booted=true 且外脑连上（或纯 local 兜底超时）→ 淡出。
+  if (!S.__ovDone) {
+    const ov = document.getElementById('loading-overlay');
+    if (ov) {
+      const txt = document.getElementById('loading-text');
+      const sub = document.getElementById('loading-sub');
+      if (S.booted) {
+        // 记录 booted 时刻，用于「外脑迟迟不来」时的强制淡出兜底
+        if (!S.__ovBootAt) S.__ovBootAt = performance.now();
+        const waitingHs = S.db === false;
+        const tooLong = performance.now() - S.__ovBootAt > 3000;
+        if (waitingHs && !tooLong) {
+          // 本地已就绪，还在等 Hindsight 后台探测
+          if (txt) txt.textContent = '本地记忆已就绪，正在连接外脑 …';
+          if (sub) sub.textContent = 'Hindsight 语义服务';
+        } else {
+          // 外脑已连上，或纯 local 模式等满 3s 兜底，淡出
+          ov.classList.add('done');
+          S.__ovDone = true;
+          setTimeout(() => { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 500);
+        }
+      }
+    } else {
+      S.__ovDone = true;
+    }
+  }
+  const t = (performance.now() - S.lastT) / 1000;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  // 网格
+  ctx.strokeStyle = 'rgba(90,150,190,.05)'; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // 每一块单独兜底：任何一块抛错都不该让整屏变黑（曾经因为 layers 缺失把画面清空过）
+  // err 同时存下完整堆栈，后面会画到面板上，免得只能靠 DevTools 才能看到
+  const safe = (fn, name) => {
+    try { fn(t); } catch (err) {
+      if (!S.errs[name]) {
+        S.errs[name] = 1;
+        S.errDetail[name] = (err && err.stack) || String(err);
+        console.error('[panel] ' + name, err);
+      }
+    }
+  };
+  // 召回片段轮换点亮：先推进状态，dynamics/cards 都在同一帧读到同一 level
+  if (S.anim) { try { updateSpotlight(performance.now()); } catch (e) { SPOT.level = 0; } }
+  else { SPOT.level = 0; SPOT.cur = -1; }
+  safe(header, 'header');
+  safe(storage, 'storage');
+  safe(dynamics, 'dynamics');
+  safe(pipeline, 'pipeline');
+  safe(chainCards, 'chain');
+  safe(cards, 'cards');
+  safe(context, 'context');
+  safe(drawBoardLinks, 'links');
+  // 提示条必须画在星云之后：先前放在 dynamics 之前，会被星图的底色整块盖掉（等于没画）。
+  // 注意 S.db 的语义是「Hindsight 可用」，不是「数据库连上了」：
+  // 纯本地模式（mode=local）本来就没有 Hindsight，不该弹红色"库未连接"吓人，
+  // 只在 hybrid 掉线时才报错。
+  if (S.mode !== 'local' && S.db === false) safe(dbBanner, 'dbBanner');
+  else if (S.mode === 'local' && S.counts && S.counts.units === 0) safe(emptyBanner, 'emptyBanner');
+  safe(footer, 'footer');
+  safe(diagBanner, 'diag');
+  requestAnimationFrame(frame);
+}
+
+/* 渲染异常面板：哪个区块抛错就把它画出来（带前几行堆栈），不用开 DevTools 也能定位 */
+function diagBanner(t) {
+  const keys = Object.keys(S.errs);
+  if (!keys.length) return;
+  const x = NET.x + 14, w = NET.w - 28;
+  let y = NET.y + 62;
+  const PL = 11;
+  for (const name of keys.slice(0, 4)) {
+    const detail = String(S.errDetail[name] || '(无堆栈)').split('\n').slice(0, 6).map(s => s.trim()).filter(Boolean);
+    const bh = 30 + detail.length * 14;
+    rr(x, y, w, bh, 8);
+    ctx.fillStyle = 'rgba(248,113,113,.10)'; ctx.fill();
+    ctx.strokeStyle = hexA(C.red, .55); ctx.lineWidth = 1; ctx.stroke();
+    txt(`渲染异常 · ${name}`, x + 12, y + 19, F(700, 12), hexA(C.red, .98));
+    txt('该区块已跳过绘制', x + w - 12, y + 19, F(400, 10), hexA(C.dim, .95), 'right');
+    detail.forEach((s, i) => {
+      txt(s.slice(0, 150), x + 12, y + 36 + i * 14, MONO(400, PL - 1.5), hexA(C.dim, .9));
+    });
+    y += bh + 8;
+  }
+  txt('F12 → Console 可看完整 trace', x + 12, y + 4, F(400, 10), hexA(C.faint, .9));
+}
+
+fit();
+requestAnimationFrame(frame);
+
+/* 交互 */
+// ESC 关闭 / 双击全屏已在页脚撤掉：面板跑在 iframe 里，window.close() 是空操作，
+// requestFullscreen 又会被 permissions policy 拒（client.js 的 allow 列表没有 fullscreen）。
+// 留着监听器只会让人以为有快捷键。
+cv.addEventListener('click', async ev => {
+  const r = cv.getBoundingClientRect();
+  const px = (ev.clientX - r.left) / r.width * W;
+  const py = (ev.clientY - r.top) / r.height * H;
+  // 点「试一次召回」按钮：从历史查询池里随机挑一条真跑
+  const qb = S.qbtn || { x: 1460, y: 96, w: 116, h: 42 };
+  if (px > qb.x && px < qb.x + qb.w && py > qb.y && py < qb.y + qb.h) {
+    runOneRecall({ alertOnError: true });
+  }
+});
+
+/* 真跑一次召回：从历史查询池里随机挑一条。
+   面板打开时会自动调用一次（见文件末尾的 autoRecallOnce），
+   所以不用担心"刚打开全是 0 和示例卡"被误认为坏了。 */
+async function runOneRecall(opts) {
+  if (S.recalling) return false;
+  S.recalling = true;
+  try {
+    let pool = S.queryPool;
+    if (!pool || !pool.length) {
+      const qj = await (await fetch('/queries')).json();
+      pool = S.queryPool = (qj.queries || []).filter(Boolean);
+    }
+    if (!pool.length) throw new Error('没有可用的历史查询');
+    // 查询长短直接决定种子数量：「我叫什么」这种 4 字查询只有 4 个起点，
+    // 召回结果看着就像“数据不见了”。这里优先从前一半（信息量更大的）里随机挑，
+    // 既保留随机性，又不会一打开面板就抽到最瘦的那条。
+    const ranked = pool.slice().sort((x, y) => String(y).length - String(x).length);
+    const head = ranked.slice(0, Math.max(1, Math.ceil(ranked.length / 2)));
+    const q = head[(Math.random() * head.length) | 0];
+    S.pendingAt = performance.now();
+    const resp = await fetch('/recall?q=' + encodeURIComponent(q));
+    if (!resp.ok) throw new Error(await resp.text());
+    return true;
+  } catch (err) {
+    S.pendingAt = 0;
+    S.lastRecallError = err.message || String(err);
+    if (opts && opts.alertOnError) alert('召回失败：' + S.lastRecallError);
+    return false;
+  } finally {
+    S.recalling = false;
+  }
+}
+
+/* 打开面板自动跑一次召回：只在「服务已就绪 + 当前没有召回结果」时触发，
+   失败就保持空闲（不弹窗、不重试），把错误留在 S.lastRecallError 里。 */
+function autoRecallOnce() {
+  if (S.__autoRecallTried) return;
+  if (S.anim) return;                       // 服务端已带回上次结果，不用重跑
+  if (!S.counts || !(S.counts.units > 0)) return;   // 空库没什么可召回的
+  S.__autoRecallTried = true;
+  runOneRecall({ alertOnError: false });
+}
+
+window.__S = S;
+S.lastT = performance.now();
+connect();
+requestAnimationFrame(frame);
+// 等服务把 /state 推下来之后再自动召回一次。
+// /state 有 ~8.8MB、首帧可能要 1~2s，单次定时器太脆（上次就因为没等到 counts 而没触发），
+// 这里改成每秒重试、最多 20 次，一旦真的触发或超过时限就停。
+setTimeout(() => {
+  let tries = 0;
+  const iv = setInterval(() => {
+    tries++;
+    if (S.__autoRecallTried || tries > 20) { clearInterval(iv); return; }
+    autoRecallOnce();
+  }, 1000);
+  autoRecallOnce();
+}, 1200);
+
+/* ============================================================
+   新版状态指示器（整合版保留）：模式徽标 / 额度 / worker / Hindsight
+   这些是旧面板没有的新能力，作为 DOM 状态栏浮在 canvas 上方。
+   ============================================================ */
+const $ = id => document.getElementById(id);
+function setDot(id, cls) { const el = $(id); if (el) el.className = 'dot ' + cls; }
+// Hindsight 指示：由 SSE 帧即时驱动（不等 60s 轮询），也不受其它端点失败影响。
+function applyHindsightUI(up, mode, bank) {
+  const m = mode || (up ? 'hybrid' : 'local');
+  const mb = $('tb-mode');
+  if (mb) { mb.textContent = m; mb.className = 'badge ' + (m === 'hybrid' ? 'hybrid' : 'local'); }
+  const hb = $('tb-hindsight');
+  if (hb) { hb.textContent = up ? 'HINDSIGHT 已叠加' : 'Hindsight: 未接入'; hb.className = 'badge ' + (up ? 'hybrid' : 'off'); }
+  if ($('tb-bank')) $('tb-bank').textContent = bank || '';
+  if ($('sc-apc')) $('sc-apc').textContent = up ? '已连接' : '未接入';
+  setDot('sc-apc-dot', up ? 'green' : 'gray');
+}
+// 顶栏版本号：服务端 /state.version 就是插件版本（server.js VERSION）
+function setPluginVersion(v) {
+  if (!v) return;
+  S.version = String(v);
+  const el = document.getElementById('tb-ver');
+  if (el && el.textContent !== 'v' + v) el.textContent = 'v' + v;
+}
+
+async function refreshTopbar() {
+  // 三路各自容错，避免某一端点慢/失败拖住整条状态栏
+  const st = await fetch('/state').then(r => r.ok ? r.json() : null).catch(() => null);
+  if (st && st.version) setPluginVersion(st.version);
+  const ws = await fetch('/worker-settings').then(r => r.ok ? r.json() : null).catch(() => null);
+  const q = await fetch('/quota-status').then(r => r.ok ? r.json() : null).catch(() => null);
+  try {
+    // 模式徽标（local/hybrid）+ Hindsight 叠加
+    const up = !!(st && (st.hindsightAvailable || st.db));
+    applyHindsightUI(up, st && st.mode, st && st.bank);
+
+    // worker 状态（配置缺失显示未知，不能把 null 当开启）
+    // 三态：已停用(灰) / 已启用·时段外待机(黄常亮) / 运行中(绿闪)
+    // 用户选「手动时段」时，schedulerEnabled=true 只表示已启用；当前是否真在
+    // 运行时段要看 on/off。auto 档脱离时段约束，视为随时可能运行。
+    S.workerEnabled = ws && ws.available !== false ? (ws.schedulerEnabled !== false) : null;
+    if (!ws || ws.available === false) {
+      if ($('sc-worker')) $('sc-worker').textContent = '未知';
+      setDot('sc-worker-dot', 'gray');
+    } else if (ws.schedulerEnabled === false) {
+      if ($('sc-worker')) $('sc-worker').textContent = '已停用';
+      setDot('sc-worker-dot', 'gray');
+    } else {
+      const inWindow = (hhmm) => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+        return m ? (Number(m[1]) * 60 + Number(m[2])) : null;
+      };
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      const onMin = inWindow(ws.on), offMin = inWindow(ws.off);
+      let active;
+      if (ws.mode === 'auto') {
+        active = true; // 自动档脱离时段，随时可能调度
+      } else if (onMin != null && offMin != null) {
+        active = onMin <= offMin
+          ? (nowMin >= onMin && nowMin < offMin)      // 同一天时段
+          : (nowMin >= onMin || nowMin < offMin);     // 跨午夜时段（如 23:00-08:00）
+      } else {
+        active = true;
+      }
+      if ($('sc-worker')) $('sc-worker').textContent = active ? '运行中' : '待机';
+      setDot('sc-worker-dot', active ? 'green' : 'amber');
+    }
+
+    // 额度状态：把「本地熔断」和「上游拒付」分开说，避免让人以为要充值
+    if (q && q.available) {
+      const free = q.errorsFreeHour || 0;
+      const kind = q.kind || (free >= 3 ? 'quota' : (q.tripped ? 'trip' : null));
+      if ($('sc-quota')) $('sc-quota').textContent =
+        kind === 'quota' ? ('拒付 ' + free) : (kind === 'trip' ? '本地熔断' : '正常');
+      setDot('sc-quota-dot', kind ? 'red' : 'green');
+      const banner = $('quota-banner');
+      if (banner) {
+        if (!kind) {
+          banner.style.display = 'none';
+        } else {
+          banner.className = kind === 'quota' ? 'kind-quota' : 'kind-trip';
+          banner.textContent = kind === 'quota'
+            ? ('⚠ Hindsight 额度/凭证异常：本小时上游拒付 ' + free + ' 次，后台 worker 已自动停止。充值或更换 key 后会自动恢复，无需手动操作。')
+            : '⚠ 本地成本熔断：本小时/今日用量超过自设上限，后台 worker 已自动停止。这不是额度或 key 的问题，不需要充值；用量回落到上限内会自动恢复。';
+          banner.style.display = 'block';
+        }
+      }
+    } else {
+      if ($('sc-quota')) $('sc-quota').textContent = '未知';
+      setDot('sc-quota-dot', 'gray');
+    }
+  } catch {}
+}
+refreshTopbar();
+setInterval(refreshTopbar, 60000);
+
+// ── worker 调度设置面板 ──
+let wsSettings = { available:false, schedulerEnabled:null, mode:'manual', on:'23:00', off:'08:00', autoThreshold:20 };
+function renderWs() {
+  const available = wsSettings.available !== false;
+  const enabled = available && wsSettings.schedulerEnabled !== false;
+  const m = wsSettings.mode === 'auto' ? 'auto' : 'manual';
+  for (const id of ['ws-disable','ws-save','ws-manual','ws-auto']) { const el=$(id); if(el) el.disabled = !available; }
+  if ($('ws-disable')) $('ws-disable').checked = available ? !enabled : false;
+  if ($('ws-schedule-body')) $('ws-schedule-body').style.display = enabled ? 'block' : 'none';
+  if ($('ws-manual')) $('ws-manual').classList.toggle('active', m === 'manual');
+  if ($('ws-auto')) $('ws-auto').classList.toggle('active', m === 'auto');
+  if ($('ws-on')) $('ws-on').value = wsSettings.on || '23:00';
+  if ($('ws-off')) $('ws-off').value = wsSettings.off || '08:00';
+  if ($('ws-thr')) $('ws-thr').value = wsSettings.autoThreshold || 20;
+  if ($('ws-warn')) $('ws-warn').style.display = (m === 'auto') ? 'block' : 'none';
+  const warn = $('ws-disable-warn');
+  if (warn) {
+    if (!available) { warn.style.display='block'; warn.textContent='worker 状态未知：请配置 MEMORY_NEBULA_HINDSIGHT_DIR 后重启服务。'; }
+    else if (!enabled) { warn.style.display='block'; warn.textContent='已停用后台 worker：不再调度/烧钱；手动召回仍可用。'; }
+    else warn.style.display='none';
+  }
+}
+async function loadWs() {
+  try { const r = await fetch('/worker-settings'); if (r.ok) { const j = await r.json(); if (j && j.mode) wsSettings = j; } } catch {}
+  renderWs();
+}
+loadWs();
+if ($('ws-btn')) $('ws-btn').addEventListener('click', () => $('ws-panel').classList.toggle('open'));
+
+// ── Hindsight 连接设置（地址 + API Key；key 用 DPAPI 加密存本机，重启自动恢复）──
+async function loadConn() {
+  try {
+    const r = await fetch('/connection-settings')
+    if (!r.ok) return
+    const j = await r.json()
+    if ($('cn-url')) $('cn-url').value = j.hindsightUrl || ''
+    if ($('cn-key')) $('cn-key').placeholder = j.hasKey ? `已保存 ${j.keyHint}（留空不修改）` : '留空=不使用鉴权'
+    const hint = $('cn-hint')
+    if (hint) {
+      if (!j.hasKey) hint.textContent = '尚未配置 key。保存后会加密存在本机（仅当前 Windows 用户可解密），重启自动填充。'
+      else if (j.source === 'env') hint.textContent = '当前 key 来自环境变量 MEMORY_NEBULA_HINDSIGHT_KEY（优先级最高）。'
+      else if (j.source === 'vault') hint.textContent = `已加密保存在本机（${j.keyHint}），重启后自动填充。`
+      else hint.textContent = 'key 仅本次运行有效（DPAPI 不可用），重启后需重新输入。'
+    }
+  } catch {}
+}
+loadConn();
+if ($('cn-save')) $('cn-save').addEventListener('click', async () => {
+  const hint = $('cn-hint')
+  const keyEl = $('cn-key')
+  const keyVal = (keyEl?.value || '').trim()
+  const body = { hindsightUrl: ($('cn-url')?.value || '').trim() }
+  // 有输入 → 保存新 key；留空且用户点了"清除"才提交空串。默认留空=不修改。
+  if (keyVal) body.hindsightKey = keyVal
+  try {
+    const r = await fetch('/connection-settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const j = await r.json()
+    if (j.ok) {
+      if (hint) {
+        const conn = j.connected ? '连接正常' : '连接测试失败（检查地址/key）'
+        hint.textContent = j.persisted
+          ? `✅ 已加密保存到本机，${conn}。重启后自动填充。`
+          : `⚠ ${conn}；保存未持久化：${j.persistError || 'DPAPI 不可用'}`
+      }
+      if (keyEl) keyEl.value = ''
+      loadConn(); refreshTopbar()
+    } else if (hint) hint.textContent = '保存失败：' + (j.error || 'unknown')
+  } catch (e) { if (hint) hint.textContent = '保存失败：' + e.message }
+});
+// 清除已保存的 key（显式提交空串 → 服务端删掉 DPAPI 文件并清内存）
+if ($('cn-clear')) $('cn-clear').addEventListener('click', async () => {
+  if (!window.confirm('确认清除已保存的 Hindsight API Key？清除后需重新输入。')) return
+  const hint = $('cn-hint')
+  try {
+    const r = await fetch('/connection-settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hindsightKey: '' }),
+    })
+    const j = await r.json()
+    if (j.ok) {
+      if ($('cn-key')) $('cn-key').value = ''
+      if (hint) hint.textContent = '已清除保存的 key。'
+      loadConn(); refreshTopbar()
+    } else if (hint) hint.textContent = '清除失败：' + (j.error || 'unknown')
+  } catch (e) { if (hint) hint.textContent = '清除失败：' + e.message }
+});
+
+if ($('ws-manual')) $('ws-manual').addEventListener('click', () => { wsSettings.mode='manual'; renderWs(); });
+if ($('ws-auto')) $('ws-auto').addEventListener('click', () => { wsSettings.mode='auto'; renderWs(); });
+if ($('ws-disable')) $('ws-disable').addEventListener('change', async () => {
+  const disable = $('ws-disable').checked;
+  const msg = disable
+    ? '确认完全停用后台 worker？\n\n停用后不再调度/消耗额度；手动召回仍可用。'
+    : '确认重新启用后台 worker 调度？';
+  if (!window.confirm(msg)) { $('ws-disable').checked = !disable; return; }
+  wsSettings.schedulerEnabled = !disable;
+  try {
+    const r = await fetch('/worker-settings', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(wsSettings) });
+    const j = await r.json();
+    if (j.ok) { wsSettings = j.settings; renderWs(); }
+    else { $('ws-disable').checked = !disable; if($('ws-disable-warn')){$('ws-disable-warn').textContent='保存失败：'+(j.error||'unknown');$('ws-disable-warn').style.display='block';} }
+  } catch (e) { $('ws-disable').checked = !disable; }
+});
+if ($('ws-save')) $('ws-save').addEventListener('click', async () => {
+  wsSettings.on = ($('ws-on')?.value||'').trim();
+  wsSettings.off = ($('ws-off')?.value||'').trim();
+  wsSettings.autoThreshold = parseInt(($('ws-thr')?.value||'20'),10) || 20;
+  try {
+    const r = await fetch('/worker-settings', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(wsSettings) });
+    const j = await r.json();
+    if (j.ok) { wsSettings = j.settings; renderWs(); if($('ws-hint'))$('ws-hint').textContent='✅ 已保存'; }
+    else if($('ws-hint')) $('ws-hint').textContent='保存失败：'+(j.error||'unknown');
+  } catch (e) { if($('ws-hint')) $('ws-hint').textContent='保存失败：'+e.message; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "port": 8898,
+  "dataDir": "",
+  "hindsightDir": "",
+  "hindsightUrl": "http://127.0.0.1:8888",
+  "hindsightKey": "",
+  "bank": "",
+  "disableHindsight": false,
+  "graphNodes": 1500,
+  "maxEdges": 12000,
+  "refreshMs": 1500,
+  "graphRefreshMs": 60000,
+  "requestTimeoutMs": 8000,
+  "recallTopK": 8,
+  "budgetChars": 1400
+}
