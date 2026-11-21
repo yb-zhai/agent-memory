@@ -45,8 +45,12 @@
 
 ## Quick Start（5 行跑通）
 
+```bash
+git clone https://github.com/yb-zhai/agent-memory.git
+```
+
 ```javascript
-import { NebulaMemory } from 'nebula-memory'
+import { NebulaMemory } from './agent-memory/memory/index.mjs'
 
 const memory = new NebulaMemory({ dir: './my-memory' })
 await memory.remember('老板喜欢喝冰美式')
@@ -55,6 +59,8 @@ const context = await memory.recall('老板喝什么？')   // → 命中「冰�
 ```
 
 > 完全不需要配置 Postgres、不需要 API Key、不需要联网。跑完上面这段，你的 Agent 就有了记忆。
+>
+> **引擎与模型无关**：`NebulaMemory` 是纯 Node.js 模块，任何 Agent（Claude / GPT / 文心 / 通义 / 自研模型）都能用——把它召回的记忆塞进 prompt 即可。
 
 ### 想用语义增强？
 
@@ -73,19 +79,21 @@ const context = await memory.recall('老板喝什么？')   // → 命中「冰�
 
 Nebula Memory 有三种用法，按需选择：
 
-### 1. 作为库（Node.js）
+### 1. 作为库（Node.js，任何模型可用）
 
 ```bash
-npm i nebula-memory        # 或直接 import 源码
+git clone https://github.com/yb-zhai/agent-memory.git
 ```
 
 ```javascript
-import { NebulaMemory } from 'nebula-memory'
+import { NebulaMemory } from './agent-memory/memory/index.mjs'
 const memory = new NebulaMemory({ dir: './memory' })
 await memory.init()
 await memory.remember('...')
 await memory.recall('...')
 ```
+
+> 引擎是纯 Node.js、零依赖、与模型无关——把它召回的记忆塞进任意模型的 prompt 即可。
 
 ### 2. 作为独立 HTTP 服务
 
