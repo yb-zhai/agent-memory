@@ -103,7 +103,22 @@ node server.js
 
 启动后监听 `127.0.0.1:8898`，暴露 REST API（`/recall`、`/remember`、`/state`、`/graph` 等）和 SSE 实时推流。任何语言（Python / JS / 其他）都能用 `requests` / `fetch` 调用。
 
-### 3. 作为 DSH 插件（可视化面板）
+### 3. 作为 MCP Server（接入 Claude / Cursor / Windsurf）
+
+```json
+{
+  "mcpServers": {
+    "agent-memory": {
+      "command": "node",
+      "args": ["C:\\path\\to\\agent-memory\\mcp-server.mjs"]
+    }
+  }
+}
+```
+
+一键接入任何 MCP 客户端，让 Claude / Cursor 等 AI 直接读写你的记忆。**当前为纯本地版**（零依赖、零花费），Hindsight 语义增强版后续跟进。详见 [docs/MCP.md](docs/MCP.md)。
+
+### 4. 作为 DSH 插件（可视化面板）
 
 如果你用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以把它作为插件安装，获得完整的「记忆星云」可视化面板。见 [安装到 DSH](#安装到-dsh)。
 

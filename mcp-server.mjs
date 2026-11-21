@@ -1,0 +1,199 @@
+/**
+ * agent-memory MCP Server — 纯本地版（零依赖）。
+ *
+ * 一个 stdio 上的 Model Context Protocol (MCP) 服务，把 NebulaMemory 记忆引擎
+ * 暴露给 Claude Desktop / Cursor / Windsurf 等任何 MCP 客户端。
+ *
+ * 设计原则：
+ *   - 零依赖：手写 stdio + JSON-RPC 2.0，不引 @modelcontextprotocol/sdk；
+ *   - 纯本地：只接本地四臂引擎（NebulaMemory），不碰 Hindsight / Postgres / LLM；
+ *   - 与模型无关：任何 MCP 客户端接入后，都能读写这套记忆。
+ *
+ * 当前只出纯本地版；Hindsight 语义增强版后续跟进。
+ *
+ * 用法（Claude Desktop 的 claude_desktop_config.json）：
+ *   {
+ *     "mcpServers": {
+ *       "agent-memory": {
+ *         "command": "node",
+ *         "args": ["C:\\path\\to\\agent-memory\\mcp-server.mjs"],
+ *         "env": { "NEBULA_DATA_DIR": "C:\\path\\to\\memory" }
+ *       }
+ *     }
+ *   }
+ */
+
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import os from 'node:os'
+import { fileURLToPath } from 'node:url'
+
+const require = createRequire(import.meta.url)
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const { NebulaMemory } = require(path.join(__dirname, 'memory', 'store.cjs'))
+
+// ── 配置 ────────────────────────────────────────────────────────────────
+const DATA_DIR = path.resolve(
+  process.env.NEBULA_DATA_DIR ||
+  process.env.MEMORY_NEBULA_DATA_DIR ||
+  path.join(os.homedir(), '.agent-memory')
+)
+
+const SERVER_INFO = {
+  name: 'agent-memory',
+  version: '1.0.0',
+}
+
+// MCP 协议版本（当前规范）
+const PROTOCOL_VERSION = '2024-11-05'
+
+// ── stdio 行缓冲读写 ─────────────────────────────────────────────────────
+// MCP stdio transport：每行一个 JSON-RPC 消息（LF 分隔），无 Content-Length 头
+// （那是 LSP 的做法；MCP stdio 用换行分隔的 JSON）。
+
+function readStdinLines(onLine) {
+  let buf = ''
+  process.stdin.setEncoding('utf8')
+  process.stdin.on('data', (chunk) => {
+    buf += chunk
+    let idx
+    while ((idx = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, idx).replace(/\r$/, '')
+      buf = buf.slice(idx + 1)
+      if (line.trim()) onLine(line)
+    }
+  })
+  process.stdin.on('end', () => { if (buf.trim()) onLine(buf) })
+}
+
+function send(msg) {
+  process.stdout.write(JSON.stringify(msg) + '\n')
+}
+
+// ── JSON-RPC 响应助手 ────────────────────────────────────────────────────
+function ok(id, result) { send({ jsonrpc: '2.0', id, result }) }
+function err(id, code, message) { send({ jsonrpc: '2.0', id, error: { code, message } }) }
+
+// ── MCP 工具定义 ─────────────────────────────────────────────────────────
+const TOOLS = [
+  {
+    name: 'remember',
+    description: '写入一条记忆。可选 importance（0~1，1.0 表示置顶/永久事实，永不受时间衰减，用于存 API 密钥、用户称呼偏好等关键信息）、kind（episode/fact/note/profile）、tags。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '要记住的内容' },
+        kind: { type: 'string', enum: ['episode', 'fact', 'note', 'profile'], description: '记忆类型，默认 episode' },
+        importance: { type: 'number', description: '重要性 0~1，1.0 = 永久置顶', minimum: 0, maximum: 1 },
+        tags: { type: 'array', items: { type: 'string' }, description: '标签' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: 'recall',
+    description: '召回与 query 相关的记忆。本地四臂检索，返回按相关度排序的记忆列表。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '要检索的内容' },
+        limit: { type: 'number', description: '最多返回条数，默认 6' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'stats',
+    description: '返回当前记忆库的统计信息（节点数、边数等）。',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'forget',
+    description: '按 id 删除一条记忆。',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: '记忆 id' } },
+      required: ['id'],
+    },
+  },
+]
+
+// ── 工具执行 ─────────────────────────────────────────────────────────────
+async function callTool(name, args, mem) {
+  switch (name) {
+    case 'remember': {
+      const input = { text: String(args.text || '') }
+      if (args.kind) input.kind = args.kind
+      if (args.importance != null) input.importance = Number(args.importance)
+      if (Array.isArray(args.tags)) input.tags = args.tags.map(String)
+      const r = await mem.remember(input)
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ id: r.id, deduped: r.deduped }) }],
+      }
+    }
+    case 'recall': {
+      const query = String(args.query || '')
+      const limit = Math.max(1, Math.min(50, Number(args.limit) || 6))
+      const hits = await mem.recall(query, { limit })
+      const text = hits.length
+        ? hits.map((h, i) => `${i + 1}. [${h.kind}] ${h.text} (score ${h.score})`).join('\n')
+        : '(无匹配记忆)'
+      return { content: [{ type: 'text', text }] }
+    }
+    case 'stats': {
+      const s = await mem.stats()
+      return { content: [{ type: 'text', text: JSON.stringify(s) }] }
+    }
+    case 'forget': {
+      const r = await mem.forget(String(args.id || ''))
+      return { content: [{ type: 'text', text: JSON.stringify(r) }] }
+    }
+    default:
+      throw new Error(`unknown tool: ${name}`)
+  }
+}
+
+// ── 主流程 ───────────────────────────────────────────────────────────────
+async function main() {
+  const mem = new NebulaMemory({ dir: DATA_DIR, log: () => {} })
+  await mem.init()
+
+  readStdinLines(async (line) => {
+    let msg
+    try { msg = JSON.parse(line) } catch { return } // 忽略无法解析的行
+    const { id, method, params } = msg
+
+    // 通知（无 id）→ 不回复
+    if (id == null) return
+
+    try {
+      switch (method) {
+        case 'initialize':
+          ok(id, {
+            protocolVersion: PROTOCOL_VERSION,
+            capabilities: { tools: {} },
+            serverInfo: SERVER_INFO,
+          })
+          break
+        case 'tools/list':
+          ok(id, { tools: TOOLS })
+          break
+        case 'tools/call': {
+          const { name, arguments: args } = params || {}
+          const result = await callTool(name, args || {}, mem)
+          ok(id, result)
+          break
+        }
+        case 'ping':
+          ok(id, {})
+          break
+        default:
+          err(id, -32601, `method not found: ${method}`)
+      }
+    } catch (e) {
+      err(id, -32603, e.message || String(e))
+    }
+  })
+}
+
+main().catch((e) => { console.error(e); process.exit(1) })
