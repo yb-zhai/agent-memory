@@ -253,6 +253,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 ---
 
-## 致谢
+## 关于本项目
 
-- 记忆引擎内核源自 [NebulaMemory](https://github.com/deepseek-ai/DeepSeek)（DSH 挂件侧），经重构独立为通用记忆引擎。
+- 本项目由**本地开发的两套记忆系统合并而来**：一套本地 JSONL 四臂召回引擎（词法 / 激活 / 图扩散 / 画像），一套 DSH 挂件侧的记忆能力。新版把它们整合成一个**零依赖的通用记忆引擎 `NebulaMemory`** + 统一的可视化面板「记忆星云」。
+- 全部为**自研实现**，零第三方运行时依赖；可视化面板、MCP Server 均随本仓库提供。
