@@ -156,6 +156,8 @@ node server.js
 
 > 想用源码方式（而非 npm 包）：`command` 填 `node`，`args` 填 `["路径/mcp-server.mjs"]` 即可。
 
+**装完怎么用？** MCP 是后台工具，AI 不会自动用——直接说「**记住：xxx**」存记忆，说「**我之前说过 xxx 吗？**」取记忆。如果 AI 说没这工具，提醒它一句「你有 agent-memory 的 MCP 工具，用 remember/recall」即可。详见 [快速上手第 6 步](docs/快速上手.md)。
+
 ### 多 Agent 共享记忆
 
 一套记忆，**所有 Agent 共享**——这是 MCP 架构最自然的用法。
