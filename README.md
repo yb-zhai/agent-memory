@@ -246,14 +246,12 @@ NebulaMemory（一个库）
 
 ### Q：这个和 Obsidian 这类笔记/知识库有什么区别？能被 AI 调用吗？
 
-定位不同，**不是竞品**：
+简单说：**Obsidian 是给你用的，Nebula Memory 是给 AI 用的。**
 
-- **Obsidian = 给人用的知识库**：你手动记笔记、双链整理，方便**你自己**搜索、阅读、梳理思路；
-- **Nebula Memory = 给 AI 用的记忆层**：AI 通过 MCP 工具自动记（`remember`）、自动召回（`recall`），让它在跨会话时「记得你」，毫秒级响应、零依赖、不用先建笔记库。
+- Obsidian：你手动记笔记、自己翻，是「人的笔记库」；
+- Nebula Memory：AI 自动记、自动想起来，让它在下次聊天时「记得你」。
 
-关键在于「human retrieval vs agent retrieval」：笔记库是为你搜、你读、你综合设计的；记忆层是为 AI 自动判断什么相关、自动注入上下文设计的。「我写下来了」和「我的 AI 知道了」是两件事。
-
-**能被 AI 调用吗？能，但出发点不同**。Obsidian 也能接进 AI——装个 MCP server（如 `obsidian-api-mcp-server` + 官方 Local REST API 插件）就能让 AI 读写你的 Vault。但那是「把人类笔记库接给 AI」（要装 Obsidian、配插件、笔记是给人看的格式）；Nebula Memory 是「天生为 AI 读写设计」。两者可互补：Obsidian 沉淀你的系统知识，Nebula Memory 存 AI 的工作记忆；需要时把 Obsidian 的重点笔记 `remember` 进记忆层做快速召回。
+**能被 AI 调用吗？能。** Obsidian 装个插件也能让 AI 读写，但要额外配置。两者不冲突——Obsidian 存你的笔记，Nebula Memory 存 AI 的记忆。
 
 ### Q：最终表现和腾讯那种带 70M 向量模型的 memory 有区别吗？
 
