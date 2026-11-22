@@ -17,6 +17,9 @@
 
 ## 为什么是它
 
+> **Works 100% offline. Zero dependencies. No API keys required.**
+> 100% 离线运行 · 零依赖 · 无需任何 API Key。
+
 市面上的 Agent 记忆框架（[Mem0](https://github.com/mem0ai/mem0)、[Zep](https://github.com/getzep/zep)、腾讯 [TencentDB Agent Memory](https://github.com/Tencent/TencentDB-Agent-Memory) 等）普遍**很重**——要 Postgres / MongoDB / 向量库、要云端 LLM、要部署脚本、每次对话都在烧钱、数据要上云。
 
 **Nebula Memory 走相反的路线**：
@@ -31,6 +34,14 @@
 | 可视化 | 通常没有 | **记忆星云面板（3D 星图 + 召回轨迹）** |
 
 一句话：**重型框架是「企业记忆中台」，Nebula Memory 是「个人开发者的零依赖记忆」**。
+
+### 坦诚对比：你该选哪个？
+
+- 想要**开箱即用的云原生托管记忆** → 用 [TencentDB Agent Memory](https://github.com/Tencent/TencentDB-Agent-Memory) 或 [Mem0](https://github.com/mem0ai/mem0)；
+- 想要**方便接入 Python 生态** → 用 LangChain Memory；
+- 想要一个**完全属于自己、不花一分钱 Token、断网也能用、甚至能在树莓派上跑起来**的极客级记忆引擎 → **用 Nebula Memory**。
+
+> **本地四臂模式已足够满足日常记忆需求**，Hindsight 语义增强是进阶可选（见 [关于语义增强](#关于语义增强hindsight)）。
 
 ---
 
