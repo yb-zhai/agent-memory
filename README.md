@@ -11,7 +11,9 @@
 >
 > **🖥 你在用 DeepSeek Harness（DSH）？直接把本仓库地址发给 DSH，让它帮你装**（见 [安装到 DSH](#安装到-dsh)）。
 
-![Nebula Memory 记忆星云面板](docs/screenshot.jpg)
+![Nebula Memory 记忆星云面板 — 实时动画](docs/demo.gif)
+
+*记忆星云面板实时动画：星云粒子呼吸 · 召回卡片轮换点亮 · 四臂命中 · 数据链实时刷新*
 
 ---
 
