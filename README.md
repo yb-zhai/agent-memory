@@ -369,3 +369,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 - **MCP Server**。
 
 全部随本仓库提供，零第三方运行时依赖。
+
+想深入了解设计取舍与优化数据（RRF 融合、并发召回、冷启动 5.9s→2.9s、成本实测），见 **[优化报告](docs/优化报告-2026-11-21.md)**。
