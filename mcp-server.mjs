@@ -41,11 +41,37 @@ const DATA_DIR = path.resolve(
 
 const SERVER_INFO = {
   name: 'agent-memory',
-  version: '1.0.0',
+  version: '1.1.0',
 }
 
 // MCP 协议版本（当前规范）
 const PROTOCOL_VERSION = '2024-11-05'
+
+// ── 多库（namespace）支持 ────────────────────────────────────────────────
+// 可选参数：不传 namespace 时走原来的 DATA_DIR 单库（完全向后兼容）；
+// 传了则用 DATA_DIR/__ns__/<name> 子目录，各库互不干扰。
+const NS_ROOT = path.join(DATA_DIR, '__ns__')
+const memCache = new Map() // namespace -> NebulaMemory 实例
+
+function normalizeNamespace(ns) {
+  if (ns == null) return null
+  const s = String(ns).trim()
+  if (!s) return null
+  // 白名单：只允许字母数字、下划线、连字符；防止目录穿越。
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(s)) throw new Error(`invalid namespace: ${s}`)
+  return s
+}
+
+async function getMemory(ns) {
+  if (ns == null) return null // 调用方改用默认单库实例
+  if (!memCache.has(ns)) {
+    const dir = path.join(NS_ROOT, ns)
+    const m = new NebulaMemory({ dir, log: () => {} })
+    await m.init()
+    memCache.set(ns, m)
+  }
+  return memCache.get(ns)
+}
 
 // ── stdio 行缓冲读写 ─────────────────────────────────────────────────────
 // MCP stdio transport：每行一个 JSON-RPC 消息（LF 分隔），无 Content-Length 头
@@ -86,6 +112,7 @@ const TOOLS = [
         kind: { type: 'string', enum: ['episode', 'fact', 'note', 'profile'], description: '记忆类型，默认 episode' },
         importance: { type: 'number', description: '重要性 0~1，1.0 = 永久置顶', minimum: 0, maximum: 1 },
         tags: { type: 'array', items: { type: 'string' }, description: '标签' },
+        namespace: { type: 'string', description: '目标记忆库（可选）。不填=默认单库；填了写入独立子库，如 work/personal。仅字母数字、_、-，≤64字符。' },
       },
       required: ['text'],
     },
@@ -98,6 +125,7 @@ const TOOLS = [
       properties: {
         query: { type: 'string', description: '要检索的内容' },
         limit: { type: 'number', description: '最多返回条数，默认 6' },
+        namespace: { type: 'string', description: '目标记忆库（可选）。不填=默认单库；填了只在该子库内检索。' },
       },
       required: ['query'],
     },
@@ -105,21 +133,30 @@ const TOOLS = [
   {
     name: 'stats',
     description: '返回当前记忆库的统计信息（节点数、边数等）。',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: {
+      type: 'object',
+      properties: { namespace: { type: 'string', description: '目标记忆库（可选）。不填=默认单库。' } },
+    },
   },
   {
     name: 'forget',
     description: '按 id 删除一条记忆。',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string', description: '记忆 id' } },
+      properties: {
+        id: { type: 'string', description: '记忆 id' },
+        namespace: { type: 'string', description: '目标记忆库（可选）。不填=默认单库。' },
+      },
       required: ['id'],
     },
   },
 ]
 
 // ── 工具执行 ─────────────────────────────────────────────────────────────
-async function callTool(name, args, mem) {
+// defaultMem：默认单库实例；args.namespace 传了就切到对应子库。
+async function callTool(name, args, defaultMem) {
+  const ns = normalizeNamespace(args.namespace)
+  const mem = ns == null ? defaultMem : await getMemory(ns)
   switch (name) {
     case 'remember': {
       const input = { text: String(args.text || '') }
@@ -155,8 +192,9 @@ async function callTool(name, args, mem) {
 
 // ── 主流程 ───────────────────────────────────────────────────────────────
 async function main() {
-  const mem = new NebulaMemory({ dir: DATA_DIR, log: () => {} })
-  await mem.init()
+  // 默认单库实例（不传 namespace 时用），保持与旧版完全一致的行为。
+  const defaultMem = new NebulaMemory({ dir: DATA_DIR, log: () => {} })
+  await defaultMem.init()
 
   readStdinLines(async (line) => {
     let msg
@@ -180,7 +218,7 @@ async function main() {
           break
         case 'tools/call': {
           const { name, arguments: args } = params || {}
-          const result = await callTool(name, args || {}, mem)
+          const result = await callTool(name, args || {}, defaultMem)
           ok(id, result)
           break
         }
