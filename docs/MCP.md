@@ -1,78 +1,89 @@
-# MCP Server 鎺ュ叆璇存槑
+# MCP Server 接入说明
 
-`nebula-memory` 鎻愪緵涓€涓?*闆朵緷璧栫殑 MCP Server**锛岃 Claude Desktop / Cursor / Windsurf 绛変换浣?MCP 瀹㈡埛绔竴閿帴鍏ヨ繖濂楄蹇嗗紩鎿庛€?
-> **褰撳墠鐗堟湰锛氱函鏈湴鐗?*銆傚彧鎺ユ湰鍦板洓鑷傚紩鎿庯紙NebulaMemory锛夛紝闆朵緷璧栥€侀浂鑺辫垂銆佷笉鑱旂綉銆佷笉涓婁簯銆?> **Hindsight 璇箟澧炲己鐗堬細鍚庣画璺熻繘**锛堟殏鏈彁渚涳級銆?
+`nebula-memory` 提供一个**零依赖的 MCP Server**，让 Claude Desktop / Cursor / Windsurf 等任何 MCP 客户端一键接入这套记忆引擎。
+
+> **当前版本：纯本地版**。只接本地四臂引擎（NebulaMemory），零依赖、零花费、不联网、不上云。
+> **Hindsight 语义增强版：后续跟进**（暂未提供）。
+
 ---
 
-## 蹇€熸帴鍏ワ紙Claude Desktop锛?
-### 1. clone 浠撳簱
+## 快速接入（Claude Desktop）
+
+### 1. clone 仓库
 
 ```bash
 git clone https://github.com/yb-zhai/agent-memory.git
 ```
 
-### 2. 缂栬緫 Claude Desktop 閰嶇疆
+### 2. 编辑 Claude Desktop 配置
 
-鎵撳紑 Claude Desktop 鐨勯厤缃枃浠?`claude_desktop_config.json`锛堜笉鍚岀郴缁熶綅缃笉鍚岋級锛屽姞鍏ワ細
+打开 Claude Desktop 的配置文件 `claude_desktop_config.json`（不同系统位置不同），加入：
 
 ```json
 {
   "mcpServers": {
     "nebula-memory": {
       "command": "node",
-      "args": ["C:\\瀹屾暣璺緞\\agent-memory\\mcp-server.mjs"],
+      "args": ["C:\\完整路径\\agent-memory\\mcp-server.mjs"],
       "env": {
-        "NEBULA_DATA_DIR": "C:\\瀹屾暣璺緞\\memory-data"
+        "NEBULA_DATA_DIR": "C:\\完整路径\\memory-data"
       }
     }
   }
 }
 ```
 
-- `command`锛氫綘鐨?Node 鍙墽琛屾枃浠讹紙閫氬父 `node`锛夛紱
-- `args`锛氭寚鍚?`mcp-server.mjs` 鐨?*缁濆璺緞**锛?- `NEBULA_DATA_DIR`锛堝彲閫夛級锛氳蹇嗘暟鎹殑瀛樻斁鐩綍锛屼笉濉垯榛樿 `~/.agent-memory`銆?
-### 3. 閲嶅惎 Claude Desktop
+- `command`：你的 Node 可执行文件（通常 `node`）；
+- `args`：指向 `mcp-server.mjs` 的**绝对路径**；
+- `NEBULA_DATA_DIR`（可选）：记忆数据的存放目录，不填则默认 `~/.agent-memory`。
 
-閲嶅惎鍚庯紝Claude 浼氳嚜鍔ㄨ繛涓?MCP Server锛屼綘灏辫兘鍦ㄥ璇濅腑璁?Claude 浣跨敤璁板繂浜嗐€?
+### 3. 重启 Claude Desktop
+
+重启后，Claude 会自动连上 MCP Server，你就能在对话中让 Claude 使用记忆了。
+
 ---
 
-## 鎻愪緵鐨勫伐鍏?
-| 宸ュ叿 | 浣滅敤 | 鍙傛暟 |
+## 提供的工具
+
+| 工具 | 作用 | 参数 |
 |---|---|---|
-| `remember` | 鍐欏叆涓€鏉¤蹇?| `text`锛堝繀濉級銆乣kind`銆乣importance`锛?.0=姘镐箙缃《锛夈€乣tags` |
-| `recall` | 鍙洖鐩稿叧璁板繂 | `query`锛堝繀濉級銆乣limit` |
-| `stats` | 璁板繂搴撶粺璁?| 鏃?|
-| `forget` | 鎸?id 鍒犻櫎 | `id`锛堝繀濉級 |
+| `remember` | 写入一条记忆 | `text`（必填）、`kind`、`importance`（1.0=永久置顶）、`tags` |
+| `recall` | 召回相关记忆 | `query`（必填）、`limit` |
+| `stats` | 记忆库统计 | 无 |
+| `forget` | 按 id 删除 | `id`（必填） |
 
 ---
 
-## 鐜鍙橀噺
+## 环境变量
 
-| 鍙橀噺 | 璇存槑 | 榛樿 |
+| 变量 | 说明 | 默认 |
 |---|---|---|
-| `NEBULA_DATA_DIR` | 璁板繂鏁版嵁鐩綍 | `~/.agent-memory` |
-| `MEMORY_NEBULA_DATA_DIR` | 鍚屼笂锛堝吋瀹?DSH 鎻掍欢鍛藉悕锛?| 鈥?|
+| `NEBULA_DATA_DIR` | 记忆数据目录 | `~/.agent-memory` |
+| `MEMORY_NEBULA_DATA_DIR` | 同上（兼容 DSH 插件命名） | — |
 
 ---
 
-## 娴嬭瘯锛堢‘璁?MCP 姝ｅ父宸ヤ綔锛?
+## 测试（确认 MCP 正常工作）
+
 ```bash
 node mcp-server.mjs
 ```
 
-鐒跺悗鎵嬪姩杈撳叆涓€琛?JSON-RPC锛堝洖杞︼級锛?
+然后手动输入一行 JSON-RPC（回车）：
+
 ```json
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
 
-搴旇繑鍥炲洓涓伐鍏风殑瀹氫箟銆?
+应返回四个工具的定义。
+
 ---
 
-## 绾湰鍦?vs Hindsight 澧炲己
+## 纯本地 vs Hindsight 增强
 
-| | 绾湰鍦扮増锛堝綋鍓嶏級 | Hindsight 澧炲己鐗堬紙鍚庣画锛?|
+| | 纯本地版（当前） | Hindsight 增强版（后续） |
 |---|---|---|
-| 渚濊禆 | 闆?| 闇€ Postgres + LLM |
-| 鎴愭湰 | 闆?| 鏈?LLM 璁¤垂 |
-| 鑳藉姏 | 鍥涜噦鍙洖锛堣瘝娉?婵€娲?鍥炬墿鏁?鐢诲儚锛?| + 璇箟妫€绱?|
-| 鐘舵€?| 鉁?宸叉彁渚?| 鈴?璺熻繘涓?|
+| 依赖 | 零 | 需 Postgres + LLM |
+| 成本 | 零 | 有 LLM 计费 |
+| 能力 | 四臂召回（词法/激活/图扩散/画像） | + 语义检索 |
+| 状态 | ✅ 已提供 | ⏳ 跟进中 |
