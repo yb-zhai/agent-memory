@@ -1,12 +1,12 @@
-# Contributing to dsh-memory-nebula
+# Contributing to Nebula Memory (agent-memory)
 
-感谢你愿意参与。这个项目是**零依赖、纯本地**的 DSH 记忆插件，所以对提交有两项硬要求。
+感谢你愿意参与。这个项目是**零依赖、纯本地**的 Agent 记忆系统，所以对提交有两项硬要求。
 
 ## 开始之前
 
 ```bash
-git clone https://github.com/<your-name>/dsh-memory-nebula.git
-cd dsh-memory-nebula
+git clone https://github.com/yb-zhai/agent-memory.git
+cd agent-memory
 node server.js          # 无需 npm install
 ```
 
