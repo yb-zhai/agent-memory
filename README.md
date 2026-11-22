@@ -136,18 +136,25 @@ node server.js
 
 ### 3. 作为 MCP Server（接入 Claude / Cursor / ChatGPT / Grok / Gemini 等）
 
+**最省事：用 npm 包，一条 `npx` 命令，不用 clone 仓库、不用装依赖：**
+
 ```json
 {
   "mcpServers": {
     "agent-memory": {
-      "command": "node",
-      "args": ["C:\\path\\to\\agent-memory\\mcp-server.mjs"]
+      "command": "npx",
+      "args": ["-y", "nebula-memory-mcp@latest"],
+      "env": { "NEBULA_DATA_DIR": "/path/to/your/memory" }
     }
   }
 }
 ```
 
+包地址：[nebula-memory-mcp on npm](https://www.npmjs.com/package/nebula-memory-mcp) · 零依赖 · 49KB。
+
 写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——它们都能直接读写你的记忆。**当前为纯本地版**（零依赖、零花费），Hindsight 语义增强版后续跟进。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
+
+> 想用源码方式（而非 npm 包）：`command` 填 `node`，`args` 填 `["路径/mcp-server.mjs"]` 即可。
 
 ### 多 Agent 共享记忆
 
@@ -168,9 +175,9 @@ NebulaMemory（一个库）
 {
   "mcpServers": {
     "agent-memory": {
-      "command": "node",
-      "args": ["C:\\path\\to\\agent-memory\\mcp-server.mjs"],
-      "env": { "NEBULA_DATA_DIR": "C:\\共享的记忆目录" }
+      "command": "npx",
+      "args": ["-y", "nebula-memory-mcp@latest"],
+      "env": { "NEBULA_DATA_DIR": "/path/共享的记忆目录" }
     }
   }
 }
