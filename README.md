@@ -11,8 +11,7 @@
 >
 > **🖥 你在用 DeepSeek Harness（DSH）？直接把本仓库地址发给 DSH，让它帮你装**（见 [安装到 DSH](#安装到-dsh)）。
 
-<!-- 这里放一张记忆星云面板的截图或 GIF（见下方「截图」小节） -->
-<!-- ![Nebula Memory 面板](docs/screenshot.gif) -->
+![Nebula Memory 记忆星云面板](docs/screenshot.png)
 
 ---
 
