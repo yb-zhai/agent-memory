@@ -134,6 +134,43 @@ node server.js
 
 写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——它们都能直接读写你的记忆。**当前为纯本地版**（零依赖、零花费），Hindsight 语义增强版后续跟进。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
 
+### 多 Agent 共享记忆
+
+一套记忆，**所有 Agent 共享**——这是 MCP 架构最自然的用法。
+
+```
+NebulaMemory（一个库）
+  └─ MCP Server（一个进程）
+       ├─ Claude Desktop   记忆互通
+       ├─ Cursor           记忆互通
+       ├─ ChatGPT          记忆互通
+       └─ Windsurf / Cline 记忆互通
+```
+
+**做法**：让多个 AI 客户端接入**同一个 MCP Server、指向同一个 `NEBULA_DATA_DIR`**——Claude 记住的东西，Cursor 下次就能查到。零改造、即配即用。
+
+```json
+{
+  "mcpServers": {
+    "agent-memory": {
+      "command": "node",
+      "args": ["C:\\path\\to\\agent-memory\\mcp-server.mjs"],
+      "env": { "NEBULA_DATA_DIR": "C:\\共享的记忆目录" }
+    }
+  }
+}
+```
+
+> 每个客户端的 MCP 配置里填**相同的 `NEBULA_DATA_DIR`**，就是共享同一份记忆。
+
+**几点说明**：
+
+| 场景 | 支持吗 |
+|---|---|
+| 多个 AI 客户端经 MCP 共享一个库 | ✅ 推荐，最稳 |
+| 多个独立进程同时读写一个库 | ⚠️ 追加是原子的、能用，但各进程把库加载进内存，**看不到彼此的实时更新**（需重启同步）；同时跑压缩会冲突，不建议重度并发 |
+| 各 Agent 独立库、互相查询 | ❌ 暂不支持（多库路由属后续功能） |
+
 ### 4. 作为 DSH 插件（可视化面板）
 
 如果你用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以把它作为插件安装，获得完整的「记忆星云」可视化面板。见 [安装到 DSH](#安装到-dsh)。
