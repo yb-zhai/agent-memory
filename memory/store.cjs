@@ -84,6 +84,7 @@ const DEFAULTS = {
   synapseIdleDays: 60, // 合成边超过这么久没触发 → 衰减
   synapseDecay: 0.9, // 每次衰减乘子
   synapseMinWeight: 0.01, // 低于它直接删除
+  hebbianMaxPerNode: 16, // 每节点赫布边数上限：超出按 保留分(w×log2(1+触发)) 剪最弱（0 = 关闭）；防热点节点边无限累积
   observeConsolidateEvery: 20, // observe() 每 N 轮触发一次巩固
   observeConsolidateDays: 1, // 或距上次巩固超过 A 天
   tickConsolidateDays: 1, // tick() 里距上次巩固超过 A 天才真正巩固
@@ -130,6 +131,75 @@ function truncateChars(s, max) {
   if (arr.length <= max) return arr.join('');
   return arr.slice(0, Math.max(0, max - 1)).join('') + '…';
 }
+
+/**
+ * 长文本切块：超过 MAX_TEXT 的正文按语义边界切成多段，而不是静默截断。
+ *
+ * 背景（2026-11-23 实测）：原实现对 >2000 字的输入直接 slice 截断，
+ * 5 万字的文档会被无声丢弃 96%，用户以为记住了实际只剩开头。
+ *
+ * 切分优先级：段落（\n\n）→ 句子（。！？；\n）→ 字符硬切（兜底）。
+ * 每块长度 <= MAX_TEXT，块间保留 context 关联标记，便于后续按 docId 聚合。
+ *
+ * @param {string} text 已 cleanText 的正文
+ * @param {number} max 单块上限
+ * @returns {string[]} 切块结果（1 块 = 无需切分）
+ */
+function splitText(text, max = MAX_TEXT) {
+  const chars = Array.from(String(text == null ? '' : text));
+  if (chars.length <= max) return [chars.join('')];
+
+  const segments = [];   // { text, len }
+  const push = (s) => {
+    const t = s.trim();
+    if (!t) return;
+    segments.push({ text: t, len: Array.from(t).length });
+  };
+
+  // 1) 先按段落切
+  const paras = chars.join('').split(/\n{2,}/);
+  for (const p of paras) {
+    if (Array.from(p).length <= max) { push(p); continue }
+    // 2) 段落仍超长 → 按句子切
+    const sentences = p.split(/(?<=[。！？；!?;\n])/);
+    for (const s of sentences) {
+      if (Array.from(s).length <= max) { push(s); continue }
+      // 3) 单句仍超长（无标点长文）→ 字符硬切
+      const arr = Array.from(s);
+      for (let i = 0; i < arr.length; i += max) push(arr.slice(i, i + max).join(''));
+    }
+  }
+
+  // 4) 贪心合并相邻片段，尽量填满每块。
+  //    关键：严格按「合并后的实际长度」判断，绝不能因为放不下就丢弃片段——
+  //    早期实现用 curLen + seg.len 估算漏算分隔符，导致每次换块丢一段（实测丢 10~19%）。
+  const out = [];
+  let cur = '';
+  for (const seg of segments) {
+    if (!cur) { cur = seg.text; continue }
+    const joined = cur + seg.text
+    if (Array.from(joined).length <= max) {
+      cur = joined
+    } else {
+      out.push(cur)
+      cur = seg.text
+    }
+  }
+  if (cur) out.push(cur)
+
+  // 保守校验：合并后总字数不应少于原文的 99%（空白归一造成的差异除外）
+  const outChars = out.reduce((n, s) => n + Array.from(s).length, 0)
+  const srcChars = Array.from(text).length
+  if (!out.length || outChars < srcChars * 0.99) {
+    // 兜底：退回纯字符硬切，保证绝对不丢
+    const arr = Array.from(text)
+    const hard = []
+    for (let i = 0; i < arr.length; i += max) hard.push(arr.slice(i, i + max).join(''))
+    return hard
+  }
+  return out;
+}
+
 
 /** 同步小睡（Windows 上 rename 撞杀软/句柄时会重试） */
 function sleepMs(ms) {
@@ -550,11 +620,44 @@ class NebulaMemory {
    */
   async remember(input = {}) {
     this._assertReady();
+    // 超长文本自动切块（2026-11-23 修复静默截断：原实现直接 slice(0, 2000)）
+    const raw = cleanText(input.text);
+    const chunks = splitText(raw, MAX_TEXT);
+    if (chunks.length > 1) {
+      const docId = `doc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      this._log('info', `remember: 文本 ${Array.from(raw).length} 字超上限，自动切为 ${chunks.length} 块 (docId=${docId})`);
+      const ids = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const r = await this._rememberOne({
+          ...input,
+          text: chunks[i],
+          _noDedupe: true,
+          meta: { ...(input.meta || {}), docId, chunkIndex: i, chunkTotal: chunks.length },
+        });
+        ids.push(r.id);
+        // 同文档相邻块连边，便于召回时整篇聚合
+        if (i > 0) {
+          try {
+            this._addEdge(ids[i - 1], r.id, 1, { kind: EDGE_KIND.SEMANTIC, source: 'chunk' })
+          } catch (e) {
+            this._log('warn', `remember: 块间连边失败 (${e.message})`)
+          }
+        }
+      }
+      return { id: ids[0], ids, deduped: false, chunks: chunks.length, docId, node: this._publicNode(this.nodes.get(ids[0])) };
+    }
+    return this._rememberOne(input);
+  }
+
+  /** 单条写入（被 remember 调用；超长已在调用方切块）。 */
+  async _rememberOne(input = {}) {
     const rec = this._buildRecord(input);
     rec._tf = this._tfFor(rec);
 
-    // 同 kind 余弦 > 阈值 → 不新增，更新已有节点的时间与重要性
-    const dup = this._findDuplicate(rec);
+    // 同 kind 余弦 > 阈值 → 不新增，更新已有节点的时间与重要性。
+    // 例外：长文档切块（input._noDedupe）必须整块独立保存 —— 同一篇文档的相邻块
+    // 本就高度相似，若互相去重会把整篇压成一条，等于又丢了内容（2026-11-23 实测确认）。
+    const dup = input._noDedupe ? null : this._findDuplicate(rec);
     if (dup) {
       const now = rec.ts;
       this._unindexNode(dup);
@@ -1038,6 +1141,7 @@ class NebulaMemory {
         archiveMinDays: this.opts.archiveMinDays,
         synapseIdleDays: this.opts.synapseIdleDays,
         synapseDecay: this.opts.synapseDecay,
+        hebbianMaxPerNode: this.opts.hebbianMaxPerNode,
         synapseMinWeight: this.opts.synapseMinWeight,
       },
       trace: this._traceLines,
@@ -1303,6 +1407,7 @@ class NebulaMemory {
       archived: forget.archived,
       edgesDecayed: forget.edgesDecayed,
       edgesRemoved: forget.edgesRemoved,
+      hebbianPruned: forget.hebbianPruned,
       scanned: forget.scanned,
       summaryId: summary ? summary.id : null,
       summaryUpdated: !!(summary && summary.updated),
@@ -1611,6 +1716,8 @@ class NebulaMemory {
       lastFired: Number.isFinite(meta.lastFired) ? Number(meta.lastFired) : now,
       fireCount: Number.isFinite(meta.fireCount) ? Number(meta.fireCount) : 1,
     };
+    // 溯源标记（chunk = 同一文档切块间的关联；缺省不写入，保持旧数据形状）
+    if (meta.source) edge.source = String(meta.source).slice(0, 32);
     this.edgeMap.set(edgeKey(lo, hi), edge);
     this._saveEdge(edge);
     this._applyEdgeToAdj(edge);
