@@ -20,6 +20,9 @@
 
 const tx = require('./tokenize.cjs');
 const dyn = require('./dynamics.cjs');
+const synonyms = require('./synonyms.cjs');
+const profileRecall = require('./profile-recall.cjs');
+const typoCorrect = require('./typo-fix.cjs');
 
 /** 三因子融合权重（SPEC §3；改名时同步 trace.weights） */
 const RECALL_WEIGHTS = Object.freeze({ lexical: 0.55, activation: 0.3, recency: 0.15 });
@@ -207,8 +210,41 @@ function runRecall(mem, query, options = {}) {
   };
 
   // ---- ① lexical ---------------------------------------------------------
-  const qv = mem._queryVector(q);
+  // 2026-11-23：词法臂之前只做原始 query 的 bigram 匹配，跨表述场景召回率低
+  // （实测 near 87.5% / mid 37.5% / far 33.3%）。这里加三路补偿：
+  //   a) 错别字/音近字纠正：拼音输入法打错（「铸造厂」→「铸造厂」）
+  //   b) 同义词扩展：固定词级对应（「供应商」↔「铸造厂」）
+  //   c) 画像反哺：个人化提问（「我孩子多大」）时把画像节点关键词并入查询
+  // 三路都可通过 options 关闭；Hindsight 的完整语义检索仍是更高层的能力。
+  const typoFix = typoCorrect.correctQuery(q, {
+    enabled: options.fixTypos !== false,
+  });
+  const qAfterTypo = typoFix.corrected;
+
+  const synOpts = options.synonyms || {};
+  const synExpand = synonyms.expandQuery(qAfterTypo, {
+    enabled: synOpts.enabled !== false && options.expandSynonyms !== false,
+    maxExpansions: synOpts.maxExpansions,
+  });
+  const profBoost = profileRecall.boostPersonalQuery(mem, qAfterTypo, {
+    enabled: options.profileBoost !== false && (options.profileRecall || {}).enabled !== false,
+    maxTokens: (options.profileRecall || {}).maxTokens,
+  });
+
+  // 合成检索 query：纠错后的原文 + 同义词 + 画像词
+  const extraTokens = [...synExpand.expansions, ...profBoost.tokens];
+  const qEffective = extraTokens.length ? (qAfterTypo + ' ' + extraTokens.join(' ')) : qAfterTypo;
+
+  const qv = mem._queryVector(qEffective);
   const tokensUsed = qv && qv.w ? qv.w.size : 0;
+  const expansionInfo = {
+    typoFixes: typoFix.fixes,
+    synonyms: synExpand.matched,
+    synonymExpansions: synExpand.expansions.length,
+    profileBoosted: profBoost.boosted,
+    profileTokens: profBoost.tokens.length,
+    effectiveQueryLen: Array.from(qEffective).length,
+  };
   /** @type {Array<{id:string, lex:number}>} */
   let lexPool = [];
   if (tokensUsed) {
@@ -405,6 +441,8 @@ function runRecall(mem, query, options = {}) {
     weights: RECALL_WEIGHTS,
     byId,
     params: { lexTopN, actTopN, graphTopN, graphSeedN, profileTopN, lambda, mmrThreshold, topK },
+    /** 2026-11-23 查询扩展诊断：同义词命中词 / 扩展数 / 画像是否反哺 / 有效 query 长度 */
+    expansion: expansionInfo,
   };
 }
 

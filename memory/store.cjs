@@ -34,6 +34,9 @@ const extract = require('./extract.cjs');
 const dynamics = require('./dynamics.cjs');
 const recallArms = require('./recall.cjs');
 const fragmentsView = require('./fragments.cjs');
+const recallSynonyms = require('./synonyms.cjs');
+const profileRecall = require('./profile-recall.cjs');
+const typoCorrect = require('./typo-fix.cjs');
 
 const { LAYER, EDGE_KIND, SUMMARY_KIND } = dynamics;
 
@@ -744,7 +747,23 @@ class NebulaMemory {
    */
   async recall(query, options = {}) {
     this._assertReady();
-    const qv = this._queryVector(query);
+    // 2026-11-23：加错别字纠正 + 同义词 + 画像反哺扩展。
+    // 注意：recall() 与 recallFragments()/runRecall() 是两条独立路径，
+    // 扩展必须在这里也算一遍，否则 MCP/API 侧（走 recall）享受不到。
+    const typoFix = typoCorrect.correctQuery(query, {
+      enabled: options.fixTypos !== false,
+    });
+    const qAfterTypo = typoFix.corrected;
+    const synExpand = recallSynonyms.expandQuery(qAfterTypo, {
+      enabled: options.expandSynonyms !== false,
+    });
+    const profBoost = profileRecall.boostPersonalQuery(this, qAfterTypo, {
+      enabled: options.profileBoost !== false,
+    });
+    const extraTokens = [...synExpand.expansions, ...profBoost.tokens];
+    const qEffective = extraTokens.length ? (qAfterTypo + ' ' + extraTokens.join(' ')) : qAfterTypo;
+
+    const qv = this._queryVector(qEffective);
     if (!qv.w.size) return [];
 
     const limit = clamp(Math.floor(num(options.limit, 6)), 1, 50);

@@ -1,0 +1,173 @@
+{
+  "when": "2026-11-23T18:38:28",
+  "engine": "hindsight",
+  "results": [
+    {
+      "query": "邯郸那个铸造厂年产多少？",
+      "needle": "三万吨",
+      "diff": "near",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "手冲咖啡用多少度水温？",
+      "needle": "92",
+      "diff": "near",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "PostgreSQL 改成了哪个端口？",
+      "needle": "5434",
+      "diff": "near",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "孩子在哪个学校上学？",
+      "diff": "near",
+      "error": "timed out",
+      "rank": 0
+    },
+    {
+      "query": "报表交给谁？",
+      "needle": "张经理",
+      "diff": "near",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "项目用的什么部署方式？",
+      "needle": "Docker",
+      "diff": "near",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "密码存在哪个工具？",
+      "needle": "1Password",
+      "diff": "near",
+      "rank": 2,
+      "n": 20
+    },
+    {
+      "query": "提交代码前要先做什么？",
+      "needle": "测试",
+      "diff": "near",
+      "rank": 2,
+      "n": 20
+    },
+    {
+      "query": "我们最大的供应商是哪家？",
+      "needle": "铸造厂",
+      "diff": "mid",
+      "rank": 2,
+      "n": 20
+    },
+    {
+      "query": "我周末有什么放松方式？",
+      "needle": "手冲",
+      "diff": "mid",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "上次那个数据库问题怎么解决的？",
+      "needle": "5434",
+      "diff": "mid",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "我孩子有什么爱好？",
+      "needle": "恐龙",
+      "diff": "mid",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "最近有什么要赶的事情？",
+      "needle": "报表",
+      "diff": "mid",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "为什么没用容器编排平台？",
+      "needle": "K8s",
+      "diff": "mid",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "重要凭据怎么保管的？",
+      "needle": "1Password",
+      "diff": "mid",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "我们对代码质量有什么要求？",
+      "needle": "测试",
+      "diff": "mid",
+      "rank": 4,
+      "n": 20
+    },
+    {
+      "query": "上次那个铸件的客户是哪家？",
+      "needle": "铸造厂",
+      "diff": "far",
+      "rank": 1,
+      "n": 20
+    },
+    {
+      "query": "我平时喝咖啡有什么讲究？",
+      "needle": "手冲",
+      "diff": "far",
+      "rank": 2,
+      "n": 20
+    },
+    {
+      "query": "数据库连不上那次是怎么修的？",
+      "needle": "5434",
+      "diff": "far",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "我孩子多大了？",
+      "needle": "二年级",
+      "diff": "far",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "我们怎么上线服务的？",
+      "needle": "Docker",
+      "diff": "far",
+      "rank": 0,
+      "n": 20
+    },
+    {
+      "query": "我账号密码放在哪来着？",
+      "needle": "1Password",
+      "diff": "far",
+      "rank": 1,
+      "n": 20
+    }
+  ],
+  "summary": {
+    "near": {
+      "n": 8,
+      "hit": 7
+    },
+    "mid": {
+      "n": 8,
+      "hit": 4
+    },
+    "far": {
+      "n": 6,
+      "hit": 3
+    }
+  }
+}

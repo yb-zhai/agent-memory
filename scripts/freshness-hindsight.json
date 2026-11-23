@@ -1,0 +1,20 @@
+{
+  "when": "2026-11-23T17:51:43",
+  "worker_enabled": true,
+  "results": [
+    {
+      "label": "worker-on",
+      "latency_s": 42.7,
+      "recall_ms": 31666,
+      "attempts": 1,
+      "pending_at_hit": 4
+    },
+    {
+      "label": "worker-on-2",
+      "latency_s": 65.1,
+      "recall_ms": 38188,
+      "attempts": 1,
+      "pending_at_hit": 2
+    }
+  ]
+}

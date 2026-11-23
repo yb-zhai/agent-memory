@@ -9,6 +9,7 @@
  *   - 归档：R < 0.15 且 Δt > 90 天 → archived=true（只归档、不删除，includeArchived 仍可召回）；
  *   - 赫布边：共激活对 w += η · aᵢ · aⱼ · (1 - w)，η=0.02，(1-w) 上界防正反馈失控；
  *   - 合成边（只削 hebbian，不动人工/semantic 边）：60 天未触发 ×0.9，w < 0.01 删除；
+ *   - 每节点 hebbian 边数上限（默认 16）：超出按保留分 w×log2(1+触发) 剪最弱，图增长有界；
  *   - L3 摘要：确定性模板「你叫…／你在…／你偏好…／最近在忙…」，不用 LLM。
  *
  * 本模块不 require store（避免循环依赖）：所有记忆操作都通过传入的 mem 实例完成，
@@ -218,7 +219,53 @@ function applyHebbian(mem, acts, opts = {}) {
       }
     }
   }
+  // 每节点赫布边数上限：本轮触碰过的节点立即检查，防写突发期间超限膨胀
+  if (created + reinforced > 0) {
+    pruneHebbianFor(mem, normed.map(([id]) => id));
+  }
   return { created, reinforced, pairs };
+}
+
+/** 节点视角的赫布边保留分：权重 × log2(1+触发次数)，同分保新。分值由边自身属性决定，两端视角一致。 */
+function hebbianRank(e) {
+  return num(e.w, 0) * Math.log2(1 + num(e.fireCount, 0)) + num(e.lastFired, 0) / 1e15;
+}
+
+/**
+ * 每节点赫布边数上限：超出 maxPerNode 的按保留分剪最弱边。
+ * 防止热点节点「每次召回共激活就加边」导致合成边无限累积、图结构漂移。
+ * maxPerNode <= 0 = 关闭。走 mem._removeEdge（tombstone 落盘，重启不复活）。
+ * @returns {{pruned:number, checked:number, dryRun:boolean}}
+ */
+function pruneHebbianFor(mem, ids, opts = {}) {
+  const maxPerNode = Math.floor(num(opts.maxPerNode, num(opt(mem, 'hebbianMaxPerNode'), 16)));
+  const dryRun = opts.dryRun === true;
+  if (maxPerNode <= 0) return { pruned: 0, checked: 0, dryRun };
+  let pruned = 0;
+  let checked = 0;
+  const seen = new Set();
+  for (const rawId of ids || []) {
+    const id = String(rawId);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const adj = mem.adj ? mem.adj.get(id) : null;
+    if (!adj || adj.size <= maxPerNode) continue;   // 邻居总数都不超限，必无赫布超限
+    const hebb = [];
+    for (const other of adj.keys()) {
+      const edge = mem.edgeMap.get(mem._edgeKey(id, other));
+      if (!edge || edge.deleted) continue;
+      if ((edge.kind || EDGE_KIND.SEMANTIC) !== EDGE_KIND.HEBBIAN) continue;
+      hebb.push(edge);
+    }
+    checked++;
+    if (hebb.length <= maxPerNode) continue;
+    hebb.sort((x, y) => hebbianRank(y) - hebbianRank(x));
+    for (const e of hebb.slice(maxPerNode)) {
+      if (!dryRun) mem._removeEdge(e);
+      pruned++;
+    }
+  }
+  return { pruned, checked, dryRun };
 }
 
 // ---------------------------------------------------------------------------
@@ -278,7 +325,29 @@ function forgetPass(mem, opts = {}) {
     }
   }
 
-  return { archived, edgesDecayed, edgesRemoved, scanned, dryRun };
+  // 每节点赫布边数上限：衰减后全量扫描一遍，热点节点的合成边超限即按保留分剪最弱
+  const maxPerNode = Math.floor(num(opts.maxPerNode, num(opt(mem, 'hebbianMaxPerNode'), 16)));
+  let hebbianPruned = 0;
+  if (maxPerNode > 0) {
+    const byNode = new Map();
+    for (const edge of mem.edgeMap.values()) {
+      if ((edge.kind || EDGE_KIND.SEMANTIC) !== EDGE_KIND.HEBBIAN) continue;
+      if (!byNode.has(edge.a)) byNode.set(edge.a, []);
+      byNode.get(edge.a).push(edge);
+      if (!byNode.has(edge.b)) byNode.set(edge.b, []);
+      byNode.get(edge.b).push(edge);
+    }
+    for (const [, edges] of byNode) {
+      if (edges.length <= maxPerNode) continue;
+      edges.sort((x, y) => hebbianRank(y) - hebbianRank(x));
+      for (const e of edges.slice(maxPerNode)) {
+        if (!dryRun) mem._removeEdge(e);
+        hebbianPruned++;
+      }
+    }
+  }
+
+  return { archived, edgesDecayed, edgesRemoved, hebbianPruned, scanned, dryRun };
 }
 
 // ---------------------------------------------------------------------------
@@ -435,6 +504,7 @@ module.exports = {
   isValidEdgeKind,
   touchNode,
   applyHebbian,
+  pruneHebbianFor,
   forgetPass,
   // L3
   collectSummary,
