@@ -41,7 +41,7 @@ const DATA_DIR = path.resolve(
 
 const SERVER_INFO = {
   name: 'agent-memory',
-  version: '1.1.0',
+  version: '1.2.0',
 }
 
 // MCP 协议版本（当前规范）
@@ -150,6 +150,14 @@ const TOOLS = [
       required: ['id'],
     },
   },
+  {
+    name: 'compact',
+    description: '手动压缩记忆库文件：清理追加历史，磁盘显著变小、下次启动明显变快。实例保持可用，不影响读写。可选 namespace。',
+    inputSchema: {
+      type: 'object',
+      properties: { namespace: { type: 'string', description: '目标记忆库（可选）。不填=默认单库。' } },
+    },
+  },
 ]
 
 // ── 工具执行 ─────────────────────────────────────────────────────────────
@@ -185,6 +193,16 @@ async function callTool(name, args, defaultMem) {
       const r = await mem.forget(String(args.id || ''))
       return { content: [{ type: 'text', text: JSON.stringify(r) }] }
     }
+    case 'compact': {
+      const r = await mem.compact()
+      const summary = {
+        ok: r.ok,
+        durationMs: r.durationMs,
+        nodeLines: `${r.before.nodeLines} -> ${r.after.nodeLines}`,
+        nodesFileMB: `${r.before.nodesMB} -> ${r.after.nodesMB}`,
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(summary) }] }
+    }
     default:
       throw new Error(`unknown tool: ${name}`)
   }
@@ -192,6 +210,23 @@ async function callTool(name, args, defaultMem) {
 
 // ── 主流程 ───────────────────────────────────────────────────────────────
 async function main() {
+  // CLI 子命令：node mcp-server.mjs compact [数据目录]
+  // ⚠️ 必须在插件服务停止后使用（压缩重写 JSONL，与服务双写会冲突）。
+  if (process.argv[2] === 'compact') {
+    const dir = path.resolve(
+      process.argv[3] ||
+      process.env.NEBULA_DATA_DIR ||
+      process.env.MEMORY_NEBULA_DATA_DIR ||
+      path.join(os.homedir(), '.agent-memory')
+    )
+    const mem = new NebulaMemory({ dir, log: () => {} })
+    await mem.init()
+    const r = await mem.compact()
+    await mem.close()
+    console.log(JSON.stringify(r, null, 2))
+    return
+  }
+
   // 默认单库实例（不传 namespace 时用），保持与旧版完全一致的行为。
   const defaultMem = new NebulaMemory({ dir: DATA_DIR, log: () => {} })
   await defaultMem.init()
