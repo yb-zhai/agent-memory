@@ -19,7 +19,7 @@
 
 **Performance (Real-world Benchmark)**
 
-· Recall (p50): ~25ms (23.7k nodes / 41.4k edges)  
+· Recall (p50): ~28ms (23.7k nodes / 41.4k edges, after auto-compaction)  
 · MCP E2E (p50): ~63ms  
 · Cold Start: 3.6s (after auto-compaction)  
 · Zero external dependencies / 100% offline
