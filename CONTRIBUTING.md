@@ -12,6 +12,10 @@ node server.js          # 无需 npm install
 
 浏览器打开 `http://127.0.0.1:8898/` 即可调试面板（纯 `local` 模式，不需要 Hindsight）。
 
+动手之前建议先读 [docs/工程经验记录.md](docs/工程经验记录.md)——里面记录了 Git 操作、
+PowerShell 编码、性能测量、评测数据落盘等场景下踩过的坑与已验证的正确做法，
+能避免重复踩坑。
+
 ## 硬性约束
 
 1. **不引入运行时依赖。**`package.json` 的 `dependencies` 必须保持为空。插件要能「解压即用、离线可跑」。
