@@ -408,6 +408,7 @@ const S = {
   graph: { nodes: [], edges: [] },
   newUnits: [],
   recall: null,
+  recallCoolUntil: 0,   // 召回冷却截止（performance.now 基准）：完成后再等一会才允许下一次，防连点打爆 DB 连接池
   anim: null,          // 当前演示
   known: new Set(),
   connected: false,
@@ -1158,10 +1159,12 @@ function pipeline(t) {
   // 试一次召回（标题行右端；小的 query 芯片在 drawBoardLinks 里画）
   S.qbtn = { x: x + w - 202, y: yc + 8, w: 90, h: 24 };
   const pend = !!S.pendingAt && performance.now() - S.pendingAt < 60000;
+  const busy = !!S.recalling || pend;                 // 请求进行中（recalling 覆盖 /queries 取池那几毫秒的空档）
+  const cool = !busy && performance.now() < (S.recallCoolUntil || 0);   // 冷却态：刚跑完，短暂置灰
   rr(S.qbtn.x, S.qbtn.y, S.qbtn.w, S.qbtn.h, 6);
-  ctx.fillStyle = hexA(C.violet, pend ? .26 : .14); ctx.fill();
-  ctx.strokeStyle = hexA(C.violet, pend ? .85 : .38); ctx.stroke();
-  txt(pend ? '召回中…' : '试一次召回', S.qbtn.x + 45, yc + 24, F(400, 11), hexA(C.violet, .95), 'center');
+  ctx.fillStyle = hexA(C.violet, pend ? .26 : busy ? .20 : cool ? .07 : .14); ctx.fill();
+  ctx.strokeStyle = hexA(C.violet, pend ? .85 : busy ? .60 : cool ? .20 : .38); ctx.stroke();
+  txt(busy ? '召回中…' : cool ? '稍候…' : '试一次召回', S.qbtn.x + 45, yc + 24, F(400, 11), hexA(C.violet, cool ? .45 : .95), 'center');
 
   // 四段 = 本地引擎四臂召回的真实命中数（无召回时显示 —）
   const scols = [C.cyan, C.violet, C.lime, C.amber];
@@ -2698,6 +2701,8 @@ cv.addEventListener('click', async ev => {
    所以不用担心"刚打开全是 0 和示例卡"被误认为坏了。 */
 async function runOneRecall(opts) {
   if (S.recalling) return false;
+  // 冷却期内直接忽略：连点会让一串召回连续打 DB 连接池（01:17 池满超时就是这么来的）
+  if (performance.now() < (S.recallCoolUntil || 0)) return false;
   S.recalling = true;
   try {
     let pool = S.queryPool;
@@ -2723,6 +2728,8 @@ async function runOneRecall(opts) {
     return false;
   } finally {
     S.recalling = false;
+    // 无论成败都留 2s 冷却：给连接池喘息，也给按钮一个明确的「稍候」反馈
+    S.recallCoolUntil = performance.now() + 2000;
   }
 }
 
