@@ -240,6 +240,16 @@ NebulaMemory（一个库）
 
 核心引擎**永远可独立运行**；Hindsight 只是「可选的增强」，不是「必需的前置」。探测不到 Hindsight 就自动降级纯本地，不报错、不伪造数据。
 
+### 架构总览 —— 一个面板服务，两套记忆引擎，三类数据层
+
+![架构总览：一个面板服务，两套记忆引擎，三类数据层](docs/architecture-overview.png)
+
+### 数据链全景 —— 两条写入链 + 两套召回，汇成同一份拼上下文
+
+![数据链全景：两条写入链 + 两套召回](docs/data-link.png)
+
+> 两图为可交互 SVG 源文件渲染，源码见 [docs/architecture-source.html](docs/architecture-source.html)（含全部数字出处，与代码逐项核对过）。
+
 ---
 
 ## 常见问题（FAQ）
