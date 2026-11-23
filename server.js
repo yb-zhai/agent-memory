@@ -768,39 +768,54 @@ function req_on_close(res, fn) {
 export async function start(overrides = {}) {
   const cfg = loadConfig(overrides)
   const firstPort = cfg.port
-  const lastPort = firstPort + 12
 
-  for (let port = firstPort; port < lastPort; port += 1) {
-    const existing = await probeService(port)
-    if (existing && existing.service === SERVICE) {
-      console.log(`[memory-nebula] reusing server on 127.0.0.1:${port} (${existing.mode})`)
-      return { port, mode: existing.mode, reused: true, stop() {} }
-    }
-
-    const instance = new MemoryNebulaServer({ ...cfg, port })
-    try {
-      await instance.listen()
-    } catch (error) {
-      if (error.code === 'EADDRINUSE') continue
-      throw error
-    }
-    try {
-      await instance.init()
-      instance.ready = true
-      instance.startTimers()
-      console.log(`[memory-nebula] http://127.0.0.1:${instance.port}/ (${instance.engine.mode})`)
-      return instance
-    } catch (error) {
-      instance.stop()
-      throw error
-    }
+  // 2026-11-24：不再盲试 12 个端口，改为「先探复用，探不通就退出」。
+  //
+  // 历史 bug：旧逻辑对每个端口先 probeService（超时仅 600ms），
+  // 探不到就 listen，EADDRINUSE 再 continue 到下一个端口。
+  // 已有实例在忙（索引回写 24MB 时 /healthz 会超过 600ms）时探测超时，
+  // 被误判为「端口空闲」，listen 又撞 EADDRINUSE，于是换到 +1 端口起新实例。
+  // 实测一天内积累出 12 个实例（8898~8909），各占 ~500MB 内存、持续空转 CPU，
+  // 且并发写同一个 index.json，留下大量 20MB 的 .tmp 残留。
+  //
+  // 现在：只认第一个端口（配置端口）。探到本服务就复用；探不到就说明
+  // 端口被占用或已有实例不健康——两种情况下**都不该再起新实例**，直接退出，
+  // 交给插件宿主（DSH）决定是否重启。一个插件只应有一个实例。
+  const existing = await probeService(firstPort, 3000)
+  if (existing && existing.service === SERVICE) {
+    console.log(`[memory-nebula] reusing server on 127.0.0.1:${firstPort} (${existing.mode})`)
+    return { port: firstPort, mode: existing.mode, reused: true, stop() {} }
   }
-  throw new Error(`no free port in ${firstPort}-${lastPort - 1}`)
+
+  const instance = new MemoryNebulaServer({ ...cfg, port: firstPort })
+  try {
+    await instance.listen()
+  } catch (error) {
+    if (error.code === 'EADDRINUSE') {
+      // 端口被占但没有健康的本服务应答：多半是上一个实例还在启动或已失联。
+      // 再起一个只会加剧问题（多实例写同一份数据），因此退出而不是换端口。
+      throw new Error(
+        `port ${firstPort} is in use but no healthy memory-nebula responded; ` +
+        `refusing to start a second instance (previous instance may still be shutting down)`
+      )
+    }
+    throw error
+  }
+  try {
+    await instance.init()
+    instance.ready = true
+    instance.startTimers()
+    console.log(`[memory-nebula] http://127.0.0.1:${instance.port}/ (${instance.engine.mode})`)
+    return instance
+  } catch (error) {
+    instance.stop()
+    throw error
+  }
 }
 
-async function probeService(port) {
+async function probeService(port, timeoutMs = 600) {
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(600), headers: { accept: 'application/json' } })
+    const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(timeoutMs), headers: { accept: 'application/json' } })
     if (!res.ok) return null
     const json = await res.json()
     return json && json.service ? json : null
