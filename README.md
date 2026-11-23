@@ -17,6 +17,17 @@
 
 ---
 
+**Performance (Real-world Benchmark)**
+
+· Recall (p50): ~25ms (23.7k nodes / 41.4k edges)  
+· MCP E2E (p50): ~63ms  
+· Cold Start: 3.6s (after auto-compaction)  
+· Zero external dependencies / 100% offline
+
+> 📊 以上为本机真实运行库快照的实测值，可一键复现：`node scripts/bench.mjs` · 完整报告见 [性能实测报告](docs/性能实测报告.md)
+
+---
+
 ## 为什么是它
 
 > **Works 100% offline. Zero dependencies. No API keys required.**
