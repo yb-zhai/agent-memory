@@ -35,6 +35,10 @@ const PARAMS = Object.freeze({
   // 种子 18 时合计约 18+54+36=108；这里给到 120 才能让 1/2 跳铺得开，
   // 太小（原 24）会让 18 个种子几乎吃满名额，1/2 跳各只剩 3~4 个、整张星云偏暗。
   graphTop: 120,
+  // 单节点扇出上限（超级节点防御）。度数超过它的节点在扩散时只取权重最高的 N 条边。
+  // 实测：5000 度枢纽 2 跳 p50=9ms（对照组 0.54ms），可接受但无上限会随度数线性恶化；
+  // 200 这个值保证「正常节点完全不受影响」，只截断病态枢纽。
+  maxDegree: 200,
   profileTop: 3, // 画像臂恒定入选数
   hops: 2, // 扩散跳数（不要 3 跳：语义会漂）
   alpha: 1.0, // 边权指数
@@ -72,6 +76,10 @@ function spread(mem, seeds, opts = {}) {
   const alpha = num(opts.alpha, PARAMS.alpha);
   const gamma = num(opts.gamma, PARAMS.gamma);
   const minW = num(opts.minEdgeWeight, PARAMS.minEdgeWeight);
+  // 单节点扇出上限（超级节点防御）；0 = 不限制
+  const maxDeg = clamp(Math.floor(num(opts.maxDegree, PARAMS.maxDegree)), 0, 100000);
+  const stats = opts.stats || null;
+  if (stats && stats.truncatedHubs == null) stats.truncatedHubs = 0;
   /** @type {Map<string, {act:number, hop:number, via:string, seed:string}>} */
   const out = new Map();
   /** @type {Map<string, {act:number, via:string, seed:string}>} */
@@ -93,7 +101,19 @@ function spread(mem, seeds, opts = {}) {
     for (const [fromId, info] of frontier) {
       const adj = mem.adj.get(fromId);
       if (!adj) continue;
-      for (const [toId, wRaw] of adj) {
+      // 超级节点防御：度数超限时只取权重最高的 maxDeg 条边。
+      // 实测 5000 度枢纽 2 跳 p50=9ms 尚可接受，但度数无上限时
+      // 每次遍历要全扫邻接表，且并发多查询会叠加放大。这里封顶换确定性。
+      let edges = adj;
+      if (maxDeg > 0 && adj.size > maxDeg) {
+        edges = new Map(
+          Array.from(adj.entries())
+            .sort((a, b) => num(b[1], 0) - num(a[1], 0))
+            .slice(0, maxDeg)
+        );
+        if (stats) stats.truncatedHubs++;
+      }
+      for (const [toId, wRaw] of edges) {
         const w = num(wRaw, 0);
         if (!(w > 0) || w < minW) continue;
         const node = mem.nodes.get(toId);
