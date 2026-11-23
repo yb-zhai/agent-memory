@@ -87,6 +87,8 @@ const DEFAULTS = {
   observeConsolidateEvery: 20, // observe() 每 N 轮触发一次巩固
   observeConsolidateDays: 1, // 或距上次巩固超过 A 天
   tickConsolidateDays: 1, // tick() 里距上次巩固超过 A 天才真正巩固
+  autoCompactRatio: 2.5, // 追加行数 > 存活×该比例 → 自动调度压缩（0 = 关闭自动压缩）
+  autoCompactDelayMs: 5000, // 跨过阈值后延迟这么多毫秒再压（防抖：写突发结束才动手）
 };
 
 /** 打分权重（1 = 原位；调大可放大该因子对排序的影响） */
@@ -446,6 +448,7 @@ class NebulaMemory {
       }
       this._ready = true;
       if (this._indexDirty) this._writeIndexSnapshot();
+      this._scheduleAutoCompact();   // 重启加载后若追加历史已膨胀，排一次自动压缩
       this._log(
         'info',
         `ready dir=${this.dir} nodes=${this.nodes.size} edges=${this.edgeMap.size} badLines=${this._badLines}`
@@ -467,6 +470,7 @@ class NebulaMemory {
   /** 关闭：落 pending 更新 → 必要时压缩 → 落索引快照。可重复调用。 */
   async close() {
     if (!this._ready) return;
+    if (this._autoCompactTimer) { clearTimeout(this._autoCompactTimer); this._autoCompactTimer = null; }
     this._flushPending();
     this._maybeCompact();
     if (this._traceLines > num(this.opts.traceMax, 200)) this._compactTrace();
@@ -474,6 +478,67 @@ class NebulaMemory {
     this._log('info', `closed dir=${this.dir} nodes=${this.nodes.size} edges=${this.edgeMap.size}`);
     this._ready = false;
     this._closed = true;
+  }
+
+  /**
+   * 手动压缩（实例保持可用）：落 pending → 强制重写 nodes/edges jsonl → 落索引快照。
+   * 只序列化内存里的存活集，规模再大也是亚秒级；收益是磁盘文件和下一次冷启动。
+   * @returns {Promise<{ok:boolean, durationMs:number, before:Object, after:Object, dir:string}>}
+   */
+  async compact() {
+    this._assertReady();
+    const t = Date.now();
+    const sizeOf = (f) => { try { return fs.statSync(f).size; } catch { return 0; } };
+    const before = {
+      nodeLines: this._nodeLines,
+      edgeLines: this._edgeLines,
+      nodesMB: +(sizeOf(this.fileNodes) / 1048576).toFixed(1),
+      edgesMB: +(sizeOf(this.fileEdges) / 1048576).toFixed(1),
+      alive: { nodes: this.nodes.size, edges: this.edgeMap.size },
+    };
+    this._flushPending();
+    this._compactNodesNow = true;
+    this._maybeCompact();
+    this._compactNodesNow = false;
+    if (this._traceLines > num(this.opts.traceMax, 200)) this._compactTrace();
+    this._writeIndexSnapshot();
+    const after = {
+      nodeLines: this._nodeLines,
+      edgeLines: this._edgeLines,
+      nodesMB: +(sizeOf(this.fileNodes) / 1048576).toFixed(1),
+      edgesMB: +(sizeOf(this.fileEdges) / 1048576).toFixed(1),
+      alive: { nodes: this.nodes.size, edges: this.edgeMap.size },
+    };
+    const out = { ok: true, durationMs: Date.now() - t, before, after, dir: this.dir };
+    this._log('info', `compact: nodeLines ${before.nodeLines} -> ${after.nodeLines}, ${before.nodesMB}MB -> ${after.nodesMB}MB in ${out.durationMs}ms`);
+    return out;
+  }
+
+  /**
+   * 自动压缩调度：追加行数超过 存活×autoCompactRatio 时，延迟 autoCompactDelayMs 执行。
+   * 压缩只重写存活集（亚秒级），不阻塞当前请求；阈值防抖保证一次写突发只压一次。
+   */
+  _scheduleAutoCompact() {
+    if (this._autoCompactTimer || this._closed) return;
+    const ratio = num(this.opts.autoCompactRatio, 2.5);
+    if (ratio <= 0) return; // 0 = 关闭
+    if (this._nodeLines <= Math.max(200, this.nodes.size * ratio)) return;
+    this._autoCompactTimer = setTimeout(() => {
+      this._autoCompactTimer = null;
+      if (this._closed || !this._ready) return;
+      try {
+        this._flushPending();
+        this._compactNodesNow = true;
+        this._maybeCompact();
+        this._compactNodesNow = false;
+        if (this._traceLines > num(this.opts.traceMax, 200)) this._compactTrace();
+        this._writeIndexSnapshot();
+        this._log('info', `auto-compact done: nodeLines=${this._nodeLines} nodes=${this.nodes.size}`);
+      } catch (e) {
+        this._log('warn', `auto-compact failed: ${e.message}`);
+      }
+    }, Math.max(0, num(this.opts.autoCompactDelayMs, 5000)));
+    this._autoCompactTimer.unref?.();
   }
 
   // -- 写入 -----------------------------------------------------------------
@@ -1530,6 +1595,7 @@ class NebulaMemory {
     this._raw.set(n.id, rec);
     this._nodeLines++;
     this._writesSinceIndex++;
+    this._scheduleAutoCompact();
   }
 
   _addEdge(a, b, weight, meta = {}) {
