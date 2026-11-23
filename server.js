@@ -652,6 +652,21 @@ export class MemoryNebulaServer {
       }
       return
     }
+    if (pathname === '/compact' && req.method === 'POST') {
+      // 手动压缩本地库：清理追加历史（磁盘变小、下次启动变快）。实例保持可用。
+      if (this._compacting) { sendJson(res, 409, { error: '已有一次压缩在进行中' }); return }
+      const mem = this.engine?.local?.mem
+      if (!mem) { sendJson(res, 503, { error: '本地引擎未就绪' }); return }
+      this._compacting = true
+      try {
+        sendJson(res, 200, await mem.compact())
+      } catch (error) {
+        sendJson(res, 500, { error: error.message })
+      } finally {
+        this._compacting = false
+      }
+      return
+    }
     if (pathname === '/connection-settings') {
       if (req.method === 'GET') {
         // 只回显是否已配置与脱敏预览，绝不返回明文 key
