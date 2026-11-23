@@ -79,7 +79,7 @@
 - 🏠 **本地优先**：记忆存在你自己的机器上，不联网、不上云、不泄露
 - 🧠 **四臂召回**：词法（TF-IDF）· 激活（FSRS 遗忘曲线）· 图扩散（2 跳）· 画像，本地就能做语义相关的记忆检索
 - 🎨 **可视化面板**：记忆星云 3D 星图、数据链、召回轨迹、SSE 实时刷新
-- ⚡ **快**：冷启动 ~3.6s（压缩后）；**纯本地召回实测 p50 ≈ 25~28ms、p90 98~142ms**（2.4 万节点真实库，纯内存计算，详见[性能实测报告](docs/性能实测报告.md)）
+- ⚡ **快**：冷启动 ~2.0s；**纯本地召回实测 p50 ≈ 13ms、p90 50ms**（2.4 万节点真实库 + 自动压缩，纯内存计算，详见[性能实测报告](docs/性能实测报告.md)）
 - 🧩 **可叠加增强**：可选接 Hindsight HTTP API 做 LLM 语义检索（不装也完全能用）
 - 📌 **置顶永固**：`importance=1.0` 的关键事实（API 密钥、称呼偏好）永不受时间衰减
 
@@ -96,7 +96,7 @@ import { NebulaMemory } from './agent-memory/memory/index.mjs'
 
 const memory = new NebulaMemory({ dir: './my-memory' })
 await memory.remember('老板喜欢喝冰美式')
-await memory.remember('这个项目的 API 密钥是 sk-xxx', { importance: 1.0 })  // 置顶，永不遗忘
+await memory.remember('生产环境部署偏好：Docker Compose 而不是 K8s', { importance: 1.0 })  // 置顶，永不遗忘（⚠️ 别存真实密钥/密码，见 SECURITY.md）
 const context = await memory.recall('老板喝什么？')   // → 命中「冰美式」
 ```
 
@@ -265,6 +265,16 @@ NebulaMemory（一个库）
 关键在于「human retrieval vs agent retrieval」：笔记库是为你搜、你读、你综合设计的；记忆层是为 AI 自动判断什么相关、自动注入上下文设计的。「我写下来了」和「我的 AI 知道了」是两件事。
 
 **能被 AI 调用吗？能，但出发点不同**。Obsidian 也能接进 AI——装个 MCP server（如 `obsidian-api-mcp-server` + 官方 Local REST API 插件）就能让 AI 读写你的 Vault。但那是「把人类笔记库接给 AI」（要装 Obsidian、配插件、笔记是给人看的格式）；Nebula Memory 是「天生为 AI 读写设计」。两者可互补：Obsidian 沉淀你的系统知识，Nebula Memory 存 AI 的工作记忆；需要时把 Obsidian 的重点笔记 `remember` 进记忆层做快速召回。
+
+### Q：「上次那个铸件的客户」能找到「邯郸永年某铸造厂」吗？（bigram 的天花板）
+
+诚实说：**纯本地版直接找不**到——这是零依赖路线的已知边界，不藏着。
+
+- 本地 LEX 臂是中文 bigram 词面匹配：召回「词面有重叠」的记忆很稳（专有名词、代码、报错信息、型号这类场景）；
+- 但「铸件的客户 → 邯郸永年某铸造厂」这种**跨表述联想**需要语义向量，本地引擎刻意不做——做了就要带 embedding 模型或数据库，违背零依赖定位；
+- 两条补偿路径：① **GRAPH 臂**——如果两条记忆曾在同一次召回里共现（赫布边）或共享标签，两跳扩散能间接搭上；② 可选的 **Hindsight 语义增强层**，这才是为跨表述语义设计的（要 Postgres + LLM，见上文对比表）。
+
+一句话：**词面精确 → 本地足够；跨表述联想 → 图臂间接补偿，或上 Hindsight 增强。**
 
 ### Q：最终表现和腾讯那种带 70M 向量模型的 memory 有区别吗？
 
