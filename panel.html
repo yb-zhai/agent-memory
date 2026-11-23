@@ -409,6 +409,7 @@ const S = {
   newUnits: [],
   recall: null,
   recallCoolUntil: 0,   // 召回冷却截止（performance.now 基准）：完成后再等一会才允许下一次，防连点打爆 DB 连接池
+  compacting: false,    // 压缩进行中（防重复触发）
   anim: null,          // 当前演示
   known: new Set(),
   connected: false,
@@ -1154,7 +1155,7 @@ function pipeline(t) {
   zoneTitle(x + 16, yc + 22, '②', '检索层', 'RETRIEVAL · 本地四臂 + Hindsight', C.violet, 1);
   // 四段改为本地引擎四臂召回的真实命中数（来自 S.anim.meta.arms），不再是 EMBED/HNSW/BM25/RRF 示意管线
   const mh = a && a.meta ? (a.meta.hindsightCount || 0) : 0;
-  txt(mh ? `本地四臂 + HIND ${mh} · 真实` : '本地四臂命中 · 真实数据', x + w - 220, yc + 22, MONO(400, 9.5), hexA(C.dim, .8), 'right');
+  txt(mh ? `本地四臂 + HIND ${mh} · 真实` : '本地四臂命中 · 真实数据', x + w - 306, yc + 22, MONO(400, 9.5), hexA(C.dim, .8), 'right');
 
   // 试一次召回（标题行右端；小的 query 芯片在 drawBoardLinks 里画）
   S.qbtn = { x: x + w - 202, y: yc + 8, w: 90, h: 24 };
@@ -1165,6 +1166,14 @@ function pipeline(t) {
   ctx.fillStyle = hexA(C.violet, pend ? .26 : busy ? .20 : cool ? .07 : .14); ctx.fill();
   ctx.strokeStyle = hexA(C.violet, pend ? .85 : busy ? .60 : cool ? .20 : .38); ctx.stroke();
   txt(busy ? '召回中…' : cool ? '稍候…' : '试一次召回', S.qbtn.x + 45, yc + 24, F(400, 11), hexA(C.violet, cool ? .45 : .95), 'center');
+
+  // 🧹 压缩库：清理追加历史（磁盘变小、下次启动明显变快）。压缩期间置灰。
+  S.cbtn = { x: S.qbtn.x - 92, y: S.qbtn.y, w: 84, h: 24 };
+  const cbusy = !!S.compacting;
+  rr(S.cbtn.x, S.cbtn.y, S.cbtn.w, S.cbtn.h, 6);
+  ctx.fillStyle = hexA(C.lime, cbusy ? .22 : .12); ctx.fill();
+  ctx.strokeStyle = hexA(C.lime, cbusy ? .75 : .35); ctx.stroke();
+  txt(cbusy ? '压缩中…' : '🧹 压缩库', S.cbtn.x + 42, yc + 24, F(400, 11), hexA(C.lime, cbusy ? .55 : .95), 'center');
 
   // 四段 = 本地引擎四臂召回的真实命中数（无召回时显示 —）
   const scols = [C.cyan, C.violet, C.lime, C.amber];
@@ -2694,6 +2703,11 @@ cv.addEventListener('click', async ev => {
   if (px > qb.x && px < qb.x + qb.w && py > qb.y && py < qb.y + qb.h) {
     runOneRecall({ alertOnError: true });
   }
+  // 点「🧹 压缩库」按钮：POST /compact
+  const cb = S.cbtn;
+  if (cb && px > cb.x && px < cb.x + cb.w && py > cb.y && py < cb.y + cb.h) {
+    runCompact();
+  }
 });
 
 /* 真跑一次召回：从历史查询池里随机挑一条。
@@ -2730,6 +2744,29 @@ async function runOneRecall(opts) {
     S.recalling = false;
     // 无论成败都留 2s 冷却：给连接池喘息，也给按钮一个明确的「稍候」反馈
     S.recallCoolUntil = performance.now() + 2000;
+  }
+}
+
+/* 手动压缩：POST /compact。旧版服务没有该路由（404）时提示重启插件生效。
+   另外引擎自带自动压缩（追加行数超过存活×2.5 时延迟 5s 自动清理），按钮只是手动兜底。 */
+async function runCompact() {
+  if (S.compacting) return;
+  if (!confirm('压缩记忆库文件？\n\n清理追加历史：磁盘显著变小、下次启动明显变快。\n压缩只重写存活集（亚秒级），期间读写不受影响。')) return;
+  S.compacting = true;
+  try {
+    const resp = await fetch('/compact', { method: 'POST' });
+    if (resp.status === 404) {
+      alert('当前运行的服务还是旧版本，没有 /compact 接口。\n插件文件已更新——重启 DSH 后即可使用（重启时也会自动清理一次）。');
+      return;
+    }
+    if (!resp.ok) throw new Error(await resp.text());
+    const r = await resp.json();
+    const b = r.before || {}, a = r.after || {};
+    alert(`压缩完成（${r.durationMs}ms）\n\n节点文件行数：${b.nodeLines} → ${a.nodeLines}\n节点文件大小：${b.nodesMB}MB → ${a.nodesMB}MB\n\n下次启动会明显变快。`);
+  } catch (err) {
+    alert('压缩失败：' + (err.message || err));
+  } finally {
+    S.compacting = false;
   }
 }
 
