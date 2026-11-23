@@ -505,6 +505,13 @@ class NebulaMemory {
     if (this._initPromise) return this._initPromise;
     this._initPromise = (async () => {
       fs.mkdirSync(this.dir, { recursive: true });
+      // 加载用户自定义词表（行业错别字/术语），文件不存在时静默跳过
+      try {
+        const r = typoCorrect.loadUserDict(this.dir);
+        if (r && r.typo) this._log('info', `typo user-dict loaded: ${r.typo} entries from ${r.source}`);
+      } catch (e) {
+        this._log('warn', `typo user-dict load failed (ignored): ${e.message}`);
+      }
       // 三个文件保持始终存在，便于外部工具/备份直接扫目录
       for (const file of [this.fileNodes, this.fileEdges]) {
         if (!fs.existsSync(file)) fs.writeFileSync(file, '', 'utf8');
