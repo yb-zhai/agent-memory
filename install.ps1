@@ -337,6 +337,36 @@ $pkgPath = Join-Path $source 'package.json'
 if (-not (Test-Path -LiteralPath $pkgPath)) { throw "找不到 $pkgPath，请在解压后的插件目录中运行本脚本。" }
 $pkg = [System.IO.File]::ReadAllText($pkgPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
 if ($pkg.name -ne 'dsh-memory-nebula') { throw "package.json 的 name 不是 dsh-memory-nebula：$($pkg.name)" }
+
+# ---- 前置校验：包内版本号必须自洽 -------------------------------------------
+# 背景：install.ps1 的健康检查会比对 server.js 的 VERSION 与 package.json 的 version，
+# 不一致则判定升级失败并回滚。若包本身这两个值就不同（发布时漏改），
+# 用户无论装多少次都会回滚，且错误信息只提示"版本不符"，难以定位。
+# 这里在**修改任何文件之前**先查一次，给出明确可操作的报错。
+$serverJsPath = Join-Path $source 'server.js'
+$serverJsText = [System.IO.File]::ReadAllText($serverJsPath, [System.Text.Encoding]::UTF8)
+$vm = [regex]::Match($serverJsText, "VERSION\s*=\s*['""]([0-9][^'""]*)['""]")
+if (-not $vm.Success) {
+    throw "无法从 server.js 解析出 VERSION，包可能已损坏。请在官方仓库重新下载发布包。"
+}
+$pkgVersion = [string]$pkg.version
+$jsVersion = [string]$vm.Groups[1].Value
+if ([string]::IsNullOrWhiteSpace($pkgVersion)) {
+    throw "package.json 缺少 version 字段，包不完整。请在官方仓库重新下载发布包。"
+}
+if ($pkgVersion -ne $jsVersion) {
+    $msg = @(
+        '发布包自身版本号不一致，安装已中止（未修改任何文件）。',
+        "  package.json version : $pkgVersion",
+        "  server.js  VERSION    : $jsVersion",
+        '继续安装会在健康检查阶段判定失败并回滚，得到难以理解的「版本不符」错误。',
+        '处理办法：',
+        '  1. 到官方仓库重新下载该版本的发布包（推荐）；',
+        '  2. 若是自行打包，请把 server.js 的 VERSION 改成与 package.json 一致后重试。'
+    ) -join "`n"
+    throw $msg
+}
+
 foreach ($f in @('index.js', 'client.js', 'server.js', 'panel.html', 'cordis.patch.yml')) {
     if (-not (Test-Path -LiteralPath (Join-Path $source $f))) { throw "插件文件缺失：$f" }
 }
