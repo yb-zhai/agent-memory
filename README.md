@@ -502,13 +502,59 @@ Nebula Memory 有两档能力：
 
 | 版本线 | 当前 | 代表什么 | 谁在读 |
 |---|---|---|---|
-| **DSH 插件** `dsh-memory-nebula` | 1.3.x | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
-| **npm 包** `nebula-memory-mcp` | 1.2.x | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor 等接入 | npm / npx 用户 |
+| **DSH 插件** `dsh-memory-nebula` | 1.3.11 | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
+| **npm 包** `nebula-memory-mcp` | 1.2.1 | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor 等接入 | npm / npx 用户 |
 | **MCP Registry 条目** | 1.5.x | Registry 上的发布版本，指向某一版 npm 包 | MCP 客户端 |
 
 **为什么不同**：三个包的内容与用途根本不同——DSH 插件带面板和 HTTP 服务，npm 包只有一个 MCP 入口文件，Registry 条目是发布记录。强行统一版本号只会让"同名不同物"更混乱。
 
 **真正必须一致的是同一包内部**：例如 DSH 插件的 `package.json` 版本与 `server.js` 的 `VERSION` 必须相等，否则 `install.ps1` 的健康检查会判定升级失败并回滚。这是安装机制的要求，与上面三条版本线无关。
+
+## 升级与数据自查
+
+### 1.3.11 修复：画像摘要重复写入
+
+**症状**：`nodes.jsonl` 体积异常膨胀，同一个 id 反复出现。1.3.10 及更早版本中，
+L3 画像摘要节点在内容未变时仍会被重写追加，而服务每 1.5 秒 tick 一次，
+**运行一天可累积数万行**。该缺陷自首版起即存在。
+
+**怎么判断自己是否踩到**：对比两个数字——
+
+| 看哪里 | 数值 |
+|---|---|
+| `nodes.jsonl` 的实际行数 | `wc -l nodes.jsonl`（Windows：`(Get-Content nodes.jsonl).Count`） |
+| `index.json` 里的 `nodes` 字段 | 存活节点数 |
+
+**两者差距明显（比如 5 万行 vs 2 万）就说明历史上有重复追加。**
+
+**怎么清理**：升级到 1.3.11 后，三选一——
+
+- 面板里的「🧹 压缩库」按钮
+- `POST http://127.0.0.1:8898/compact`
+- 重启服务（会自动比较行数与存活数，差距过大时压缩）
+
+压缩是安全的：它遍历内存中的节点表，**同一个 id 只保留最新状态**（含访问计数与时间戳都不会倒退）。
+
+### 网络与代理
+
+**纯本地版不发起任何外部请求**，只访问 `127.0.0.1`，不存在 IP 外泄问题。
+
+接了 Hindsight 才会出网（调用 LLM、下载模型）。此时：
+
+- **请求头里不带客户端 IP**。服务的 `--proxy-headers` 默认关闭，未启用时不会解析
+  `X-Forwarded-For` / `X-Real-IP`；调用上游 LLM 时构造的是全新的请求头，
+  不会透传原始客户端信息。
+- **网络层看到的是出口 IP**。若配置了 `HTTPS_PROXY`，上游看到的是代理出口地址，
+  而不是你的真实公网 IP。
+
+**如果配了代理，一定要排除本机地址**，否则连本地 Hindsight 都会走代理：
+
+```
+NO_PROXY=127.0.0.1,localhost
+```
+
+Hindsight 读取标准环境变量 `http_proxy` / `https_proxy` / `NO_PROXY`
+（不认 `ALL_PROXY`）。
 
 ## 安装到 DSH
 
