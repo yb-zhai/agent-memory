@@ -49,16 +49,37 @@ const SERVICE = 'dsh-nebula-memory'
 // 本进程启动时刻（epoch ms）：旧面板用它对比 state.ts 判断是否连到了旧进程
 const STARTED_AT = Date.now()
 
-// Hindsight 侧文件路径——统一由 MEMORY_NEBULA_HINDSIGHT_DIR 派生。
-// 未配置时不猜测本机路径：worker/额度状态显示「未知」，写设置会明确报错，
-// 且绝不能把空目录交给 path.join 退化成当前工作目录下的相对路径。
-const HINDSIGHT_DIR = String(process.env.MEMORY_NEBULA_HINDSIGHT_DIR || '').trim().replace(/[\\/]+$/, '')
-const WORKER_WINDOW_JSON = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'worker-window.json') : null
-const WORKER_WINDOW_PS1 = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'maintenance', 'worker-window.ps1') : null
-const COST_GUARD_STATE = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'logs', 'cost-guard.state.json') : null
 const PREFIX = 'MEMORY_NEBULA_'
 
 const DEFAULT_DSH_HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
+
+// 安装器写在 <DSH_HOME>/memory-nebula.json 里的 hindsightDir。
+// 环境变量优先；环境变量为空时才回退读它 —— 这样「安装器写入的配置」和
+// 「用户手工设的环境变量」两条路都能生效，手动重启也不会丢配置。
+function readConfigHindsightDir() {
+  try {
+    const file = path.join(DEFAULT_DSH_HOME, 'memory-nebula.json')
+    if (!fs.existsSync(file)) return ''
+    const json = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const dir = String((json && json.hindsightDir) || '').trim()
+    // 配置文件里允许写 ~ 或 %USERPROFILE%，统一展开成绝对路径后再用
+    const expanded = dir
+      .replace(/^~(?=[\\/]|$)/, os.homedir())
+      .replace(/%([^%]+)%/g, (m, name) => process.env[name] ?? m)
+    return expanded.replace(/[\\/]+$/, '')
+  } catch {
+    // 配置损坏/不可读时按未配置处理，不阻断服务启动
+    return ''
+  }
+}
+
+// Hindsight 侧文件路径——由 MEMORY_NEBULA_HINDSIGHT_DIR（环境变量）或配置文件派生。
+// 两者都没有时不猜测本机路径：worker/额度状态显示「未知」，写设置会明确报错，
+// 且绝不能把空目录交给 path.join 退化成当前工作目录下的相对路径。
+const HINDSIGHT_DIR = String(process.env.MEMORY_NEBULA_HINDSIGHT_DIR || '').trim().replace(/[\\/]+$/, '') || readConfigHindsightDir()
+const WORKER_WINDOW_JSON = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'worker-window.json') : null
+const WORKER_WINDOW_PS1 = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'maintenance', 'worker-window.ps1') : null
+const COST_GUARD_STATE = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'logs', 'cost-guard.state.json') : null
 
 const CORS = {
   'access-control-allow-origin': '*',
