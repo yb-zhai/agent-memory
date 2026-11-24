@@ -94,6 +94,10 @@ docs/chore/test/build/ci:  不计入版本判定
 
 > **注意**：给已有功能加开关、加配置项时**不要**用 `feat:`。虽然它写起来像新功能，
 > 但按本项目的版本规则属于 Patch。写成 `feat:` 会让发版工具推出 Minor，与预期不符。
+>
+> 发版时会自动检查：`scripts/check-commit-prefix.mjs` 扫描上一个 tag 以来的提交，
+> 若发现用了 `feat:` 但标题含「开关 / 配置项 / toggle / option」等关键词，
+> 会列出这些提交并提示改用 `fix:`。默认只提示不阻断，可手动加 `--strict` 改为阻断。
 
 可选作用域：`feat(panel):`、`fix(memory):`、`feat(install):`。
 

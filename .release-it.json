@@ -69,7 +69,8 @@
   },
   "hooks": {
     "before:init": [
-      "node --check server.js"
+      "node --check server.js",
+      "node scripts/check-commit-prefix.mjs"
     ]
   }
 }
