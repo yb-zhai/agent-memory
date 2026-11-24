@@ -25,6 +25,7 @@
   .dot.green{background:#a3e635;animation:blink 1.4s ease-in-out infinite}
 .dot.steady{animation:none}
   .dot.amber{background:#fbbf24;animation:blink 1.4s ease-in-out infinite}
+  .dot.pink{background:#f472b6;animation:blink 1.4s ease-in-out infinite}
   .dot.red{background:#fb7185}.dot.gray{background:#3a4d60}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
   #tb-status{margin-left:auto;display:flex;align-items:center;gap:14px}
@@ -2856,24 +2857,33 @@ async function refreshTopbar() {
       // 四态（2026-11-24）：关(灰常亮)/定时待机(黄闪)/自动待机(绿常亮)/运行(绿闪)
       // auto 档以 /worker-status.active（Hindsight processing>0）为准，
       // 端点不可用时回退为绿闪（旧行为），避免误报空闲。
-      let state = 'running';
+      // worker 状态灯 6 态（2026-11-24 重定义）：
+      //   关掉        灰常亮   schedulerEnabled=false
+      //   定时         黄闪     manual 时段外等待
+      //   auto 运行    绿闪     auto + processing>0
+      //   auto 待机    绿常亮   auto + 空闲
+      //   manual 运行  粉闪     manual 时段内 + processing>0
+      //   manual 待机  粉常亮   manual 时段内 + 空闲
+      // 颜色区分模式：绿=auto，粉=manual；闪烁=正在处理，常亮=空闲。
+      const liveActive = Boolean(wrt && wrt.available && wrt.active);
+      let state;
       if (ws.mode === 'auto') {
-        state = (wrt && wrt.available && !wrt.active) ? 'standby-auto' : 'running';
+        state = liveActive ? 'auto-running' : 'auto-standby';
       } else if (onMin != null && offMin != null) {
         const inWin = onMin <= offMin
           ? (nowMin >= onMin && nowMin < offMin)      // 同一天时段
           : (nowMin >= onMin || nowMin < offMin);     // 跨午夜时段（如 23:00-08:00）
-        state = inWin ? 'running' : 'standby-manual';
+        state = !inWin ? 'scheduled' : (liveActive ? 'manual-running' : 'manual-standby');
+      } else {
+        state = liveActive ? 'manual-running' : 'manual-standby';
       }
-      // 标签按状态区分：黄灯闪的 manual 时段外要写「定时」，不能和 auto 待机一样写「待机」
-      const workerLabel = state === 'running' ? '运行中'
-        : state === 'standby-manual' ? '定时'
-        : '待机';
-      if ($('sc-worker')) $('sc-worker').textContent = workerLabel;
+      const LABEL = { scheduled: '定时', 'auto-running': '运行中', 'auto-standby': '待机',
+                      'manual-running': '运行中', 'manual-standby': '待机' };
+      const DOT = { scheduled: 'dot amber', 'auto-running': 'dot green', 'auto-standby': 'dot green steady',
+                    'manual-running': 'dot pink', 'manual-standby': 'dot pink steady' };
+      if ($('sc-worker')) $('sc-worker').textContent = LABEL[state] || '未知';
       const wd = $('sc-worker-dot');
-      if (wd) wd.className = state === 'standby-auto' ? 'dot green steady'
-                         : state === 'standby-manual' ? 'dot amber'
-                         : 'dot green';
+      if (wd) wd.className = DOT[state] || 'dot gray';
     }
 
     // 额度状态：把「本地熔断」和「上游拒付」分开说，避免让人以为要充值
