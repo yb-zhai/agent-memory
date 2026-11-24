@@ -90,7 +90,7 @@ export function loadConfig(overrides = {}) {
     disableHindsight: env('DISABLE_HINDSIGHT') === '1' || overrides.disableHindsight === true,
     // 旧全功能面板需要饱满星图：每类多拉节点（三类合计）、边上限相应提高。
     // 可用 MEMORY_NEBULA_GRAPH_NODES / MAX_EDGES 覆盖；轻量场景可调小。
-    graphNodes: clampInt(env('GRAPH_NODES') || overrides.graphNodes, 1500, 10, 12000),
+    graphNodes: clampInt(env('GRAPH_NODES') || overrides.graphNodes, 6000, 10, 20000),
     maxEdges: clampInt(env('MAX_EDGES') || overrides.maxEdges, 12000, 500, 40000),
     refreshMs: clampInt(env('REFRESH_MS') || overrides.refreshMs, 1500, 700, 10000),
     graphRefreshMs: clampInt(env('GRAPH_REFRESH_MS') || overrides.graphRefreshMs, 60000, 10000, 3600000),
@@ -208,20 +208,80 @@ export class MemoryNebulaServer {
       const g = await this.engine.graph()
       // 节点数受 cfg.graphNodes 限制：全量节点会让 /state 膨胀到数 MB，
       // 浏览器渲染星图时直接卡死白屏（实测 2.8 万节点 -> 8.5 MB）。
-      // 按 ts 倒序取最近的，保证星图上看到的是「新近」的部分。
+      //
+      // 取样分两步，缺一不可：
+      //   1) 沿时间轴等距抽样 —— 取「最近 N 个」会让星图只剩最近十几小时
+      //      （实测 1500 个全落在 11-24 15:53 之后，前 20 天的记忆全被裁掉）；
+      //   2) 补回已选节点的邻居 —— 抽样是独立随机的，两个相连节点同时被选中
+      //      的概率只有 (1500/28269)²，实测 1500 个节点只剩 129 条边、
+      //      仅 198 个节点有连接，星图变成一堆孤立点。
       const allNodes = Array.isArray(g.nodes) ? g.nodes : []
-      const limited = allNodes.length > this.cfg.graphNodes
-        ? allNodes.slice().sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0)).slice(0, this.cfg.graphNodes)
-        : allNodes
-      // 旧面板用节点 w 表示新旧程度（影响节点大小/亮度）；按 ts 补算真实权重。
-      const nodes = limited.map((n) => ({ ...n, w: recencyWeight(Number(n.ts) || 0) }))
-      const previousIds = new Set(this.graph.nodes.map((n) => n.id))
-      const nextNodes = nodes.filter((n) => !previousIds.has(n.id)).slice(0, 30)
-      // 旧全功能面板的 buildGraph 期望边是 [a,b,w] 三元组；转成该格式。
-      let edges = (g.edges || []).slice(0, this.cfg.maxEdges).map((e) => {
+      const rawEdges = (g.edges || []).map((e) => {
         if (Array.isArray(e)) return e
         return [e.source ?? e.a, e.target ?? e.b, Number(e.weight ?? e.w) || 0]
       }).filter(([a, b]) => a && b)
+
+      const limit = this.cfg.graphNodes
+      let picked
+      if (allNodes.length <= limit) {
+        picked = allNodes
+      } else {
+        // 1) 按时间正序等距抽一半名额
+        const sorted = allNodes
+          .map((n) => ({ n, t: Number(n.ts) || 0 }))
+          .sort((a, b) => a.t - b.t)
+        const seedCount = Math.max(1, Math.floor(limit / 2))
+        const step = sorted.length / seedCount
+        const chosen = new Map()
+        for (let i = 0; i < seedCount; i++) {
+          const item = sorted[Math.min(Math.floor(i * step), sorted.length - 1)]
+          chosen.set(item.n.id, item.n)
+        }
+        // 2) 建邻接表，把已选节点的邻居补进来，直到用满名额
+        const adj = new Map()
+        for (const [a, b] of rawEdges) {
+          if (!adj.has(a)) adj.set(a, [])
+          if (!adj.has(b)) adj.set(b, [])
+          adj.get(a).push(b)
+          adj.get(b).push(a)
+        }
+        const byId = new Map(sorted.map((it) => [it.n.id, it.n]))
+        // 邻居也按时间顺序遍历，避免总是偏向某一段
+        const queue = [...chosen.keys()]
+        outer: while (queue.length && chosen.size < limit) {
+          const cur = queue.shift()
+          for (const nb of adj.get(cur) || []) {
+            if (chosen.has(nb)) continue
+            const node = byId.get(nb)
+            if (!node) continue
+            chosen.set(nb, node)
+            queue.push(nb)
+            if (chosen.size >= limit) break outer
+          }
+        }
+        // 3) 名额还有剩（大量孤立节点时），按时间等距补齐
+        if (chosen.size < limit) {
+          const rest = sorted.filter((it) => !chosen.has(it.n.id))
+          const need = limit - chosen.size
+          const s2 = rest.length / Math.max(1, need)
+          for (let i = 0; i < need && i * s2 < rest.length; i++) {
+            chosen.set(rest[Math.floor(i * s2)].n.id, rest[Math.floor(i * s2)].n)
+          }
+        }
+        picked = [...chosen.values()]
+      }
+
+      // 旧面板用节点 w 表示新旧程度（影响节点大小/亮度）；按 ts 补算真实权重。
+      const nodes = picked.map((n) => ({ ...n, w: recencyWeight(Number(n.ts) || 0) }))
+      const previousIds = new Set(this.graph.nodes.map((n) => n.id))
+      const nextNodes = nodes.filter((n) => !previousIds.has(n.id)).slice(0, 30)
+      // 抽样后节点变少了，指向未选中节点的边必须一并丢弃，否则星图上会出现
+      // 悬空端点（面板画到不存在的位置）。
+      const keptIds = new Set(nodes.map((n) => n.id))
+      // 旧全功能面板的 buildGraph 期望边是 [a,b,w] 三元组。
+      let edges = rawEdges
+        .filter(([a, b]) => keptIds.has(a) && keptIds.has(b))
+        .slice(0, this.cfg.maxEdges)
       this.graph = { nodes, edges, rev: Date.now(), sources: g.sources, newUnits: nextNodes }
       this.graphAt = Date.now()
     } catch (error) {
