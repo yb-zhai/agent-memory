@@ -502,7 +502,7 @@ Nebula Memory 有两档能力：
 
 | 版本线 | 当前 | 代表什么 | 谁在读 |
 |---|---|---|---|
-| **DSH 插件** `dsh-memory-nebula` | 1.3.11 | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
+| **DSH 插件** `dsh-memory-nebula` | 1.3.12 | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
 | **npm 包** `nebula-memory-mcp` | 1.2.1 | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor 等接入 | npm / npx 用户 |
 | **MCP Registry 条目** | 1.5.x | Registry 上的发布版本，指向某一版 npm 包 | MCP 客户端 |
 
@@ -511,6 +511,44 @@ Nebula Memory 有两档能力：
 **真正必须一致的是同一包内部**：例如 DSH 插件的 `package.json` 版本与 `server.js` 的 `VERSION` 必须相等，否则 `install.ps1` 的健康检查会判定升级失败并回滚。这是安装机制的要求，与上面三条版本线无关。
 
 ## 升级与数据自查
+
+### 1.3.12 变更
+
+**1. 升级前校验包内版本号自洽**
+
+`install.ps1` 在动任何文件之前，先比对包内 `package.json` 的 `version` 与
+`server.js` 的 `VERSION`。两者不等则直接报错退出，不进入安装流程。
+
+这不是防用户，是防发布方自己：1.3.9 和 1.3.10 两次发版漏改 `server.js` 的
+`VERSION`，导致健康检查判定失败、所有升级被静默回滚，缺陷也因此被遮盖了一天多。
+现在这类问题在动手之前就会被拦住，并给出明确原因。
+
+**2. 启动时清理残留的临时文件**
+
+写 `index.json` 用的是「写临时文件 → rename 覆盖」的原子写法。如果进程正好在
+写临时文件期间被中断（强制结束、断电、重启），会留下 0 字节的
+`index.json.tmp-<pid>-<hex>` 残壳。它们不影响功能，但一直没人回收。
+
+1.3.12 起，每次启动会清理一次。**删的条件很严格**：只删属于当前进程的，或所属
+进程已经不存在的。多实例并存时，另一个实例正在写的临时文件会被保留——删掉会
+让它 rename 失败、丢掉那次快照。
+
+清理结果会写进日志（`~/.dsh/memory-nebula.log`）：
+
+```text
+[memory:info] startup swept 2 stale tmp file(s): index.json.tmp-999995-xxx, trace.jsonl.tmp-999994-yyy
+```
+
+没有残留时不会有这行，属于正常。
+
+**3. 本地引擎的告警现在会进日志**
+
+此前 `lib/engine.mjs` 构造本地引擎时没有传入日志函数，导致引擎层所有告警
+（包括上面这条清理记录）被静默丢弃。现已接上，`memory:info` / `memory:warn`
+两类记录都会出现在日志里，排查问题时不再"什么都没有"。
+
+**升级建议**：本次无数据格式变化（`INDEX_VERSION` 仍为 `2`），可直接覆盖升级，
+不需要额外处理。若想顺手回收旧版遗留的临时文件，升级后第一次启动会自动完成。
 
 ### 1.3.11 修复：画像摘要重复写入
 
@@ -626,7 +664,7 @@ Hindsight 读取标准环境变量 `http_proxy` / `https_proxy` / `NO_PROXY`
 
 **可以直接从旧版跨多个版本升到最新**，数据格式兼容已经验证过：
 
-- `index.json` 的 `INDEX_VERSION` 在 1.3.8 ~ 1.3.11 一直是 `2`，格式未变
+- `index.json` 的 `INDEX_VERSION` 在 1.3.8 ~ 1.3.12 一直是 `2`，格式未变
 - 1.3.8 的数据被 1.3.11 正确读取；1.3.11 的数据被 1.3.8 正确读取（回滚安全）
 - 旧版缺陷遗留的重复行不会阻塞新版启动
 - `index.json` 删除、写坏、清空，都能从 `nodes.jsonl` 自动重建
