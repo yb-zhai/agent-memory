@@ -119,6 +119,29 @@
 - 🧩 **可叠加增强**：可选接 Hindsight HTTP API 做 LLM 语义检索（不装也完全能用）
 - 📌 **置顶永固**：`importance=1.0` 的关键事实（API 密钥、称呼偏好）永不受时间衰减
 
+### 关于实现语言：为什么选纯 Node.js
+
+选型的第一原则是**适配**。这个项目以 DSH 插件形态运行：`index.js` 通过宿主提供的
+插件接口挂载，`client.js` 向前端注入面板入口，面板服务本身也由同一个运行时托管。
+三者都要长在宿主的 Node 环境里——用 Node 写可以直连，不必额外架一层进程间通信，
+也不必为记忆工具再维护一套 Python 环境。
+
+其次是部署上的两点便利：
+
+- **无第三方运行时依赖**：`package.json` 的 `dependencies` 为空，代码只用到
+  `node:fs` / `node:path` / `node:http` / `node:crypto` / `node:zlib` / `node:os` /
+  `node:url` / `node:module` 这几个内置模块。
+- **分发形态简单**：`npx nebula-memory-mcp` 一条命令即可运行，不需要 `pip install`、
+  不需要 venv、不需要额外安装数据库服务。MCP 客户端（Claude Desktop / Cursor 等）
+  会反复拉起工具进程，启动环节越少，出问题的概率越低。
+
+> 补充说明：我们做 SQLite 可行性测试时，**刻意用 Python 逐行复刻了 Node 的
+> `init()` 作为对照基线**，目的是让差异只归因于存储架构，不混入语言运行时差异。
+> 因此**那批数据不能用来比较 Node 与 Python**——我们没有做过这个对比，
+> 选型依据也不是语言之间的快慢，而是上面的适配与部署条件。
+>
+> 那次测试的结论是存储层**暂不切换、保持纯 JSONL**，本地留档不发（脚本在独立目录维护）。
+
 ---
 
 ## Quick Start（5 行跑通）
