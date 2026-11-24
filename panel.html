@@ -2865,7 +2865,11 @@ async function refreshTopbar() {
           : (nowMin >= onMin || nowMin < offMin);     // 跨午夜时段（如 23:00-08:00）
         state = inWin ? 'running' : 'standby-manual';
       }
-      if ($('sc-worker')) $('sc-worker').textContent = state === 'running' ? '运行中' : '待机';
+      // 标签按状态区分：黄灯闪的 manual 时段外要写「定时」，不能和 auto 待机一样写「待机」
+      const workerLabel = state === 'running' ? '运行中'
+        : state === 'standby-manual' ? '定时'
+        : '待机';
+      if ($('sc-worker')) $('sc-worker').textContent = workerLabel;
       const wd = $('sc-worker-dot');
       if (wd) wd.className = state === 'standby-auto' ? 'dot green steady'
                          : state === 'standby-manual' ? 'dot amber'
