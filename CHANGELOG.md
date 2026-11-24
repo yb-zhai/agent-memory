@@ -10,6 +10,16 @@
 Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
 
 
+## [1.4.1](https://github.com/yb-zhai/agent-memory/compare/v1.4.0...v1.4.1) (2026-11-24)
+
+### Added
+
+* **memory:** 内容清洗增加开关，用户可自行关闭 ([9a32558](https://github.com/yb-zhai/agent-memory/commit/9a32558164f3c3a2a6a231a196996f271f22501d))
+
+### Fixed
+
+* **memory:** 写入入口增加内容清洗，防止思考过程与工具原始输出污染记忆库 ([955d3dc](https://github.com/yb-zhai/agent-memory/commit/955d3dced3a4a351bdbfed8bec22f45e77e310fa))
+
 ## [1.4.0](https://github.com/yb-zhai/agent-memory/compare/v1.3.13...v1.4.0) (2026-11-24)
 
 ### Added
