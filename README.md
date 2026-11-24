@@ -246,7 +246,7 @@ node server.js
 
 包地址：[nebula-memory-mcp on npm](https://www.npmjs.com/package/nebula-memory-mcp) · 零依赖 · 49KB。
 
-写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——它们都能直接读写你的记忆。**当前为纯本地版**（零依赖、零花费），Hindsight 语义增强版后续跟进。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
+写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——它们都能直接读写你的记忆。**MCP 入口当前只接本地四臂**（零依赖、零花费）；需要语义增强请用 DSH 插件面板，见[下文](#关于语义增强hindsight)。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
 
 > 想用源码方式（而非 npm 包）：`command` 填 `node`，`args` 填 `["路径/mcp-server.mjs"]` 即可。
 

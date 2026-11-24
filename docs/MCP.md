@@ -2,8 +2,11 @@
 
 `nebula-memory` 提供一个**零依赖的 MCP Server**，让 Claude Desktop / Cursor / Windsurf 等任何 MCP 客户端一键接入这套记忆引擎。
 
-> **当前版本：纯本地版**。只接本地四臂引擎（NebulaMemory），零依赖、零花费、不联网、不上云。
-> **Hindsight 语义增强版：后续跟进**（暂未提供）。
+> **MCP 入口目前只接本地四臂引擎**（NebulaMemory），零依赖、零花费、不联网、不上云。
+>
+> 需要语义增强（Hindsight）的话，走 DSH 插件面板那条路——面板支持双引擎叠加。
+> Hindsight 是[开源项目](https://github.com/vectorize-io/hindsight)，服务端需自行安装，
+> 详见 [README 的「关于语义增强」](../README.md#关于语义增强hindsight)。MCP 入口暂未接入它。
 
 ---
 
@@ -81,9 +84,9 @@ node mcp-server.mjs
 
 ## 纯本地 vs Hindsight 增强
 
-| | 纯本地版（当前） | Hindsight 增强版（后续） |
+| | MCP 入口（当前） | DSH 插件面板 |
 |---|---|---|
-| 依赖 | 零 | 需 Postgres + LLM |
-| 成本 | 零 | 有 LLM 计费 |
-| 能力 | 四臂召回（词法/激活/图扩散/画像） | + 语义检索 |
-| 状态 | ✅ 已提供 | ⏳ 跟进中 |
+| 依赖 | 零 | 本地四臂零依赖；Hindsight 需 Postgres + LLM |
+| 成本 | 零 | 本地零成本；Hindsight 有 LLM 计费 |
+| 能力 | 四臂召回（词法/激活/图扩散/画像） | 四臂 + 可选 Hindsight 语义叠加 |
+| Hindsight | 暂未接入 | ✅ 支持，装好服务端后自动识别并叠加 |

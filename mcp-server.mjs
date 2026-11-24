@@ -9,7 +9,8 @@
  *   - 纯本地：只接本地四臂引擎（NebulaMemory），不碰 Hindsight / Postgres / LLM；
  *   - 与模型无关：任何 MCP 客户端接入后，都能读写这套记忆。
  *
- * 当前只出纯本地版；Hindsight 语义增强版后续跟进。
+ * 本 MCP 入口只接本地四臂；需要 Hindsight 语义增强请走 DSH 插件面板那条路
+ * （Hindsight 服务端需自行安装，见 README「关于语义增强」）。
  *
  * 用法（Claude Desktop 的 claude_desktop_config.json）：
  *   {
