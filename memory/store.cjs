@@ -581,6 +581,9 @@ class NebulaMemory {
     // —— v2：trace / 巩固节流 / 轮次计数 ——
     this._traceLines = 0;
     this._traceSeq = 0;
+    // 累计召回次数：与 trace.jsonl 的行数无关，不受 traceMax 裁剪影响。
+    // 双引擎下 Hindsight 有自己的 recallCount，本地侧需要独立记录才能合并统计。
+    this._recallTotal = 0;
     this._lastConsolidateAt = 0;
     this._lastSummaryRefreshAt = 0; // L3 画像摘要上次刷新的时刻（tick 节流用）
     this._lastTickAt = 0;
@@ -652,6 +655,11 @@ class NebulaMemory {
         this._lastConsolidateAt = num(this._indexMeta.lastConsolidateAt, 0);
         this._lastTickAt = num(this._indexMeta.lastTickAt, 0);
         this._traceSeq = num(this._indexMeta.traceSeq, 0);
+        this._recallTotal = num(this._indexMeta.recallTotal, 0);
+        // 首次升级到带计数器的版本时，index meta 里没有 recallTotal；
+        // 用 trace.jsonl 的现有行数做初始值，避免把历史召回全部丢掉
+        // （trace 受 traceMax 裁剪，所以只能作为一次性起点，之后靠自增）。
+        if (this._recallTotal === 0) this._recallTotal = this._traceLines;
       }
       this._ready = true;
       if (this._indexDirty) this._writeIndexSnapshot();
@@ -1632,6 +1640,7 @@ class NebulaMemory {
       edgesTotal: this.edgeMap.size,
       tokens: this.postings.size,
       trace: this._traceLines,
+      recallTotal: this._recallTotal,
     };
   }
 
@@ -1987,6 +1996,7 @@ class NebulaMemory {
   // -------------------------------------------------------------------------
 
   _writeTrace(trace) {
+    this._recallTotal++;
     const rec = { ...trace, seq: ++this._traceSeq };
     appendLine(this.fileTrace, rec);
     this._traceLines++;
@@ -2061,6 +2071,7 @@ class NebulaMemory {
       tokens: this.postings.size,
       trace: this._traceLines,
       traceSeq: this._traceSeq,
+      recallTotal: this._recallTotal,
       lastConsolidateAt: this._lastConsolidateAt,
       lastTickAt: this._lastTickAt,
       postings,
@@ -2077,6 +2088,7 @@ class NebulaMemory {
       tokens: payload.tokens,
       trace: payload.trace,
       traceSeq: payload.traceSeq,
+      recallTotal: payload.recallTotal,
       lastConsolidateAt: payload.lastConsolidateAt,
       lastTickAt: payload.lastTickAt,
     };

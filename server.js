@@ -331,6 +331,27 @@ export class MemoryNebulaServer {
     if (this.legacy) {
       state.layers = this.legacy.layers(engineState.hindsightAvailable)
       state.activated = this.legacy.activated || []
+      // 双引擎下的召回统计修正：
+      // legacy.noteRecall() 由 server.js 在每次 /recall 时调用，它的计数
+      // （retrieval.traces）统计的是**所有**召回，与 Hindsight 是否可用无关 ——
+      // 名字叫 Hindsight 但口径其实是全量。
+      //
+      // 同时又给本地引擎加了 recallTotal（store._writeTrace 里 +1），
+      // 两者统计的是同一次召回，直接相加会翻倍（实测 251 -> 253 每次 +2）。
+      //
+      // 所以这里取两边较大值作为总数（legacy 计数覆盖历史更长，本地计数
+      // 从 trace 行数起始、可跨裁剪累计），并把两个来源的读数都透出去，
+      // 便于面板排障时核对，不做相加。
+      const local = engineState.layerStats || {}
+      const ret = state.layers.retrieval || {}
+      const legacyTraces = Number(ret.traces) || 0
+      const localTraces = Number(local.recallTotal) || 0
+      state.layers.retrieval = {
+        ...ret,
+        traces: Math.max(legacyTraces, localTraces),
+        legacy_traces: legacyTraces,
+        local_traces: localTraces,
+      }
     }
     return state
   }
