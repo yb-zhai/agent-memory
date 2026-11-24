@@ -258,6 +258,64 @@ function sanitizeMeta(meta) {
   return JSON.parse(s);
 }
 
+// ---- 内容清洗：防止思考过程 / 工具原始输出污染记忆库 --------------------------
+// 记忆库应只保存"值得长期记住的内容"，而不是模型的推理草稿或工具的原始返回。
+// 这里在写入入口做一道防线；宁可少存，也不要把噪音永久落盘。
+
+/** 常见的思考标签对（部分开源模型会把推理过程包在标签里一起输出） */
+const THINK_TAG_RE = /<(think|thought|thought_process|thinking|reasoning)>[\s\S]*?<\/\1>/gi;
+/** 流式残留：只有开标签没有闭标签时，从开标签截断到结尾 */
+const THINK_OPEN_RE = /<(think|thought|thought_process|thinking|reasoning)>[\s\S]*$/i;
+
+/** 工具原始输出的判定：整段就是 JSON / 长到没有信息量 */
+function looksLikeRawToolOutput(s) {
+  const t = s.trim();
+  if (!t) return false;
+  // 纯 JSON 对象/数组（尝试解析，避免误杀正文里引用 JSON 片段的笔记）
+  if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+    try {
+      JSON.parse(t);
+      return true;
+    } catch {
+      /* 不是合法 JSON，按普通文本处理 */
+    }
+  }
+  return false;
+}
+
+/**
+ * 清洗待写入的记忆正文。
+ * @param {string} text 原始文本
+ * @param {object} opts { role?: string, maxLen?: number }
+ * @returns {string} 清洗后的文本（可能为空字符串，调用方需自行判断）
+ */
+function sanitizeMemoryText(text, opts = {}) {
+  if (typeof text !== 'string') return '';
+  let s = text;
+
+  // 1) 剔除思考标签及其内容
+  s = s.replace(THINK_TAG_RE, '');
+  s = s.replace(THINK_OPEN_RE, '');
+
+  // 2) 工具角色：纯 JSON 的原始返回不存
+  if (opts.role === 'tool') {
+    if (looksLikeRawToolOutput(s)) return '';
+  }
+
+  // 3) 无论什么角色，整段是纯 JSON 的都不值得作为"记忆"
+  if (looksLikeRawToolOutput(s)) return '';
+
+  s = s.trim();
+
+  // 4) 超长截断（保留头部，尾部标注），避免单条吃掉大量存储
+  const maxLen = Number.isFinite(opts.maxLen) ? opts.maxLen : 8000;
+  if (s.length > maxLen) {
+    s = `${s.slice(0, maxLen)}\n… [已截断，原文 ${s.length} 字]`;
+  }
+  return s;
+}
+
+
 function makeId() {
   return 'm' + Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
 }
@@ -2181,7 +2239,13 @@ class NebulaMemory {
   // -------------------------------------------------------------------------
 
   _buildRecord(input) {
-    const text = cleanText(input.text).slice(0, MAX_TEXT);
+    // 两道清洗串联：cleanText 处理空白/不可见字符，sanitizeMemoryText 剔除
+    // 思考标签、丢弃纯 JSON 工具输出并做长度保护。
+    const sanitized = sanitizeMemoryText(cleanText(input.text), { role: input.role });
+    if (!sanitized) {
+      throw new TypeError('memory: remember({ text }) 需要非空文本');
+    }
+    const text = sanitized.slice(0, MAX_TEXT);
     if (!text) throw new TypeError('memory: remember({ text }) 需要非空文本');
     let kind = MEM_KIND.EPISODE;
     if (input.kind != null) {
