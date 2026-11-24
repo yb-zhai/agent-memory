@@ -10,6 +10,17 @@
 Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
 
 
+## [1.5.0](https://github.com/yb-zhai/agent-memory/compare/v1.4.1...v1.5.0) (2026-11-24)
+
+### Added
+
+* **release:** 发版前检查提交前缀，拦截「开关当新功能」的误用 ([7e3cd67](https://github.com/yb-zhai/agent-memory/commit/7e3cd674df25dbf12ff6fbae042cf0362e92a51a))
+
+### Docs
+
+* 补充规则 —— 仓库内部工具类改动用 chore: 前缀，不升 Minor ([74f7eed](https://github.com/yb-zhai/agent-memory/commit/74f7eedd3a98bba504666569f185a8fc2fafc49e))
+* CONTRIBUTING 补充例外规则 —— 给已有功能加开关算 Patch ([ae541cf](https://github.com/yb-zhai/agent-memory/commit/ae541cf104b2e8e1323a0b05debbcb213e293f6c))
+
 ## [1.4.1](https://github.com/yb-zhai/agent-memory/compare/v1.4.0...v1.4.1) (2026-11-24)
 
 ### Added
