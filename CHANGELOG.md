@@ -1,6 +1,24 @@
 # Changelog
 
 本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/)。
+版本变更由 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 自动推导，按以下三类呈现对使用者有影响的变更：
+
+- **Added** — 向下兼容的新功能（升 Minor）
+- **Fixed** — 向下兼容的缺陷修复（升 Patch）
+- **Changed / Breaking Changes** — 行为变化或不兼容的接口变更（升 Major）
+
+Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
+
+
+## [1.4.0](https://github.com/yb-zhai/agent-memory/compare/v1.3.13...v1.4.0) (2026-11-24)
+
+### Added
+
+* **release:** 引入 SemVer 2.0.0 规范与自动化发版工具链 ([c9e7c93](https://github.com/yb-zhai/agent-memory/commit/c9e7c9342c8c1b83450ca28f3c51775f7bb1d279))
+
+# Changelog
+
+本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/)。
 版本变更由 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 自动推导：
 
 - **Added** — 向下兼容的新功能（升 Minor）
