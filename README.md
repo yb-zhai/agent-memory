@@ -527,7 +527,6 @@ MIT 许可，任何人都能 `pip install` 或 Docker 部署。
 | **双引擎对接层** | 两引擎并发召回 + RRF 融合、自动降级、星图合并、状态探测（这部分**在本插件里，随包分发**） |
 
 需要澄清一点：**上面用到的模型本身都是公开的**——
-
 - embedding：`intfloat/multilingual-e5-small`
 - reranker：`hindsight-ai/hs-rerank-1`（约 0.39 GB，**上游默认，本部署指引也用这个**）
 
