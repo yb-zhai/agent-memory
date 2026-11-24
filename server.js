@@ -853,6 +853,124 @@ export class MemoryNebulaServer {
       }
       return
     }
+    // 配置向导：分三步探测 Hindsight 是否真的能用。
+    // 为什么要有第③步：Hindsight 没有配 LLM 时服务照样能起、banks 列表照样能拉，
+    // 但 retain 会失败 —— 面板一片绿，记忆却一条也写不进去，用户根本无从察觉。
+    // 第③步用官方 dry-run-extract 端点做一次最小抽取（不落库），
+    // 是唯一能证明「LLM 现在真的可用」的判据。实测 1.2.0 上 health/llm
+    // 端点 feature flag 为 false（404），不能依赖它。
+    if (pathname === '/hindsight-probe') {
+      const base = String(this.cfg.hindsightUrl || '').replace(/\/+$/, '')
+      const out = {
+        url: base,
+        ok: false,
+        steps: {
+          port: { ok: false, detail: '' },
+          api: { ok: false, detail: '', banks: [], version: null },
+          llm: { ok: false, detail: '', skipped: false, usage: null },
+        },
+      }
+      if (!base) {
+        out.steps.port.detail = '未配置 Hindsight 地址'
+        sendJson(res, 200, out)
+        return
+      }
+      const getJson = async (pathname2, ms) => {
+        const ctl = new AbortController()
+        const timer = setTimeout(() => ctl.abort(), ms)
+        try {
+          const r = await fetch(`${base}${pathname2}`, { signal: ctl.signal, headers: { accept: 'application/json', ...(this.cfg.hindsightKey ? { authorization: `Bearer ${this.cfg.hindsightKey}` } : {}) } })
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return await r.json()
+        } finally { clearTimeout(timer) }
+      }
+
+      // ① 端口可达 + API 健康
+      try {
+        const h = await getJson('/health', 3000)
+        out.steps.port.ok = true
+        out.steps.port.detail = `数据库 ${h.database || '未知'}，连接 ${h.db_acquire_ms != null ? h.db_acquire_ms + 'ms' : '未知'}`
+      } catch (error) {
+        out.steps.port.detail = /abort/i.test(error.message)
+          ? `连接超时（${base} 无响应）`
+          : `连不上（${error.message}）`
+        sendJson(res, 200, out)
+        return
+      }
+
+      // ② 拉 banks 列表 + 版本，顺便确认 bank 是否存在
+      let chosenBank = ''
+      try {
+        const [banksRes, verRes] = await Promise.all([
+          getJson('/v1/default/banks', 5000),
+          getJson('/version', 5000).catch(() => null),
+        ])
+        const list = Array.isArray(banksRes) ? banksRes : (banksRes.banks || [])
+        out.steps.api.banks = list.map((b) => ({
+          bank_id: b.bank_id,
+          fact_count: Number(b.fact_count) || 0,
+          last_write_at: b.last_write_at || null,
+        })).sort((a, b) => b.fact_count - a.fact_count).slice(0, 50)
+        out.steps.api.version = verRes && verRes.api_version ? verRes.api_version : null
+        out.steps.api.ok = true
+        out.steps.api.detail = `发现 ${list.length} 个 bank` + (out.steps.api.version ? `，API ${out.steps.api.version}` : '')
+
+        // 选 bank：显式配置优先，其次当前引擎已选的，最后 fact_count 最大的
+        const cfgBank = String(this.cfg.bank || '').trim()
+        const curBank = this.engine?.hindsight?.bank || ''
+        const ids = out.steps.api.banks.map((b) => b.bank_id)
+        if (cfgBank && ids.includes(cfgBank)) chosenBank = cfgBank
+        else if (curBank && ids.includes(curBank)) chosenBank = curBank
+        else chosenBank = out.steps.api.banks[0]?.bank_id || ''
+        out.steps.api.chosen = chosenBank
+        if (cfgBank && !ids.includes(cfgBank)) {
+          out.steps.api.detail += `；配置的 bank「${cfgBank}」不存在，将回退到 ${chosenBank || '（无）'}`
+          out.steps.api.configBankMissing = true
+        }
+      } catch (error) {
+        out.steps.api.detail = `banks 列表取不到（${error.message}）`
+        sendJson(res, 200, out)
+        return
+      }
+
+      // ③ LLM 可用性：用 dry-run-extract 做一次最小抽取（不落库）
+      if (!chosenBank) {
+        out.steps.llm.skipped = true
+        out.steps.llm.detail = '没有可用 bank，跳过 LLM 检测'
+        sendJson(res, 200, out.steps.api.ok ? { ...out, ok: false } : out)
+        return
+      }
+      const t0 = Date.now()
+      try {
+        const ctl = new AbortController()
+        const timer = setTimeout(() => ctl.abort(), 30000)
+        let body
+        try {
+          const r = await fetch(`${base}/v1/default/banks/${encodeURIComponent(chosenBank)}/memories/dry-run-extract`, {
+            method: 'POST',
+            signal: ctl.signal,
+            headers: { 'content-type': 'application/json', accept: 'application/json', ...(this.cfg.hindsightKey ? { authorization: `Bearer ${this.cfg.hindsightKey}` } : {}) },
+            body: JSON.stringify({ content: 'connectivity probe', context: 'memory nebula setup wizard' }),
+          })
+          if (!r.ok) {
+            const text = await r.text().catch(() => '')
+            throw new Error(`HTTP ${r.status}${text ? ' ' + text.slice(0, 160) : ''}`)
+          }
+          body = await r.json()
+        } finally { clearTimeout(timer) }
+        out.steps.llm.ok = true
+        out.steps.llm.usage = body && body.usage ? body.usage : null
+        out.steps.llm.detail = `LLM 可用（${Date.now() - t0}ms` + (out.steps.llm.usage && out.steps.llm.usage.total_tokens ? `，本次探测 ${out.steps.llm.usage.total_tokens} tokens` : '') + '）'
+      } catch (error) {
+        out.steps.llm.detail = /abort/i.test(error.message)
+          ? 'LLM 调用超时（>30s），可能是 provider 不可达或模型响应过慢'
+          : `LLM 不可用：${error.message}`
+      }
+
+      out.ok = out.steps.port.ok && out.steps.api.ok && out.steps.llm.ok
+      sendJson(res, 200, out)
+      return
+    }
     if (pathname === '/connection-settings') {
       if (req.method === 'GET') {
         // 只回显是否已配置与脱敏预览，绝不返回明文 key
