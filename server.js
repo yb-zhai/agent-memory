@@ -30,7 +30,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PANEL = path.join(__dirname, 'panel.html')
 const ICON = path.join(__dirname, 'icon.svg')
 
-export const VERSION = '1.3.13'
+// 版本号的唯一权威源是 package.json —— 发布工具（release-it）只改这一处，
+// 避免再出现「package.json 改了、server.js 常量忘了改」导致的升级回滚（见 1.3.9/1.3.10）。
+function readPackageVersion() {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')
+    const v = JSON.parse(raw).version
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  } catch {
+    /* 读不到时退化为 unknown，不阻断服务启动 */
+  }
+  return 'unknown'
+}
+
+export const VERSION = readPackageVersion()
 const SERVICE = 'dsh-memory-nebula'
 // 本进程启动时刻（epoch ms）：旧面板用它对比 state.ts 判断是否连到了旧进程
 const STARTED_AT = Date.now()

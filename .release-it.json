@@ -1,0 +1,75 @@
+{
+  "git": {
+    "commitMessage": "chore(release): ${version}",
+    "tagName": "v${version}",
+    "tagAnnotation": "v${version}",
+    "requireCleanWorkingDir": true,
+    "requireUpstream": true,
+    "push": true,
+    "pushArgs": [
+      "--follow-tags"
+    ]
+  },
+  "npm": {
+    "publish": false
+  },
+  "github": {
+    "release": false
+  },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits",
+        "types": [
+          {
+            "type": "feat",
+            "section": "Added"
+          },
+          {
+            "type": "fix",
+            "section": "Fixed"
+          },
+          {
+            "type": "perf",
+            "section": "Changed"
+          },
+          {
+            "type": "revert",
+            "section": "Changed"
+          },
+          {
+            "type": "docs",
+            "section": "Docs"
+          },
+          {
+            "type": "chore",
+            "section": "Chore"
+          },
+          {
+            "type": "test",
+            "section": "Test"
+          },
+          {
+            "type": "build",
+            "section": "Build"
+          },
+          {
+            "type": "ci",
+            "section": "CI"
+          },
+          {
+            "type": "refactor",
+            "section": "Changed"
+          }
+        ]
+      },
+      "infile": "CHANGELOG.md",
+      "header": "# Changelog\n\n本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/)。\n版本变更由 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 自动推导，按以下三类呈现对使用者有影响的变更：\n\n- **Added** — 向下兼容的新功能（升 Minor）\n- **Fixed** — 向下兼容的缺陷修复（升 Patch）\n- **Changed / Breaking Changes** — 行为变化或不兼容的接口变更（升 Major）\n\nDocs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。\n"
+    }
+  },
+  "hooks": {
+    "before:init": [
+      "node --check server.js"
+    ]
+  }
+}
