@@ -387,6 +387,60 @@ function atomicWrite(file, data) {
   throw lastErr;
 }
 
+/**
+ * 清理上次运行遗留的原子写临时文件（`<file>.tmp-<pid>-<hex>`）。
+ *
+ * 只会删掉「属于本进程」或「所属进程已不存在」的临时文件——
+ * 绝不能无差别删除：多实例并存时，别的进程可能正在写自己的 tmp，
+ * 删掉会让它 rename 失败、丢掉这次快照。
+ *
+ * @param {string} dir 数据目录
+ * @returns {{removed:string[], kept:string[]}}
+ */
+function cleanupStaleTmpFiles(dir) {
+  const removed = [];
+  const kept = [];
+  let names;
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return { removed, kept };
+  }
+  for (const name of names) {
+    const m = /\.tmp-(\d+)-[0-9a-f]+$/i.exec(name);
+    if (!m) continue;
+    const pid = Number(m[1]);
+    if (!Number.isInteger(pid) || pid <= 0) continue;
+    // pid 仍在运行且不是自己 → 保留（对方可能正在写）
+    if (pid !== process.pid && isPidAlive(pid)) {
+      kept.push(name);
+      continue;
+    }
+    const full = path.join(dir, name);
+    try {
+      fs.rmSync(full, { force: true });
+      removed.push(name);
+    } catch {
+      // 被占用/无权限就留着，下次启动再试
+      kept.push(name);
+    }
+  }
+  return { removed, kept };
+}
+
+/**
+ * 判断 pid 对应的进程是否还活着。
+ * EPERM 表示进程存在但无权限发信号 —— 仍算存活，不能删它的临时文件。
+ */
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
 /** 追加一行（append 只写一行，崩溃最多丢最后一行，读入时会当坏行跳过） */
 function appendLine(file, obj) {
   const fd = fs.openSync(file, 'a');
@@ -507,6 +561,18 @@ class NebulaMemory {
     if (this._initPromise) return this._initPromise;
     this._initPromise = (async () => {
       fs.mkdirSync(this.dir, { recursive: true });
+      // 回收上次未及清理的原子写临时文件（崩溃/重启会留下 0 字节残壳）
+      try {
+        const swept = cleanupStaleTmpFiles(this.dir);
+        if (swept.removed.length) {
+          this._log('info', `startup swept ${swept.removed.length} stale tmp file(s): ${swept.removed.join(', ')}`);
+        }
+        if (swept.kept.length) {
+          this._log('warn', `startup kept ${swept.kept.length} tmp file(s) in use: ${swept.kept.join(', ')}`);
+        }
+      } catch (e) {
+        this._log('warn', `startup tmp sweep failed (ignored): ${e.message}`);
+      }
       // 加载用户自定义词表（行业错别字/术语），文件不存在时静默跳过
       try {
         const r = typoCorrect.loadUserDict(this.dir);
