@@ -101,6 +101,9 @@
           <div class="row"><label style="min-width:44px">地址</label><input id="cn-url" type="text" style="width:170px" placeholder="http://127.0.0.1:8888" /></div>
           <div class="row"><label style="min-width:44px">API Key</label><input id="cn-key" type="password" style="width:170px" placeholder="留空=不使用鉴权" /></div>
           <button class="save" id="cn-save">保存并测试连接</button>
+          <button id="cn-probe" style="margin-top:6px;width:100%;background:rgba(56,225,255,.10);border:1px solid rgba(56,225,255,.45);
+            color:#38e1ff;border-radius:8px;padding:6px 0;font-size:12px;cursor:pointer">检测 Hindsight（三步）</button>
+          <div id="cn-probe-out" style="display:none;margin-top:8px;font-size:11px;line-height:1.7"></div>
           <button id="cn-clear" style="margin-top:6px;width:100%;background:transparent;border:1px solid rgba(251,113,133,.4);
             color:#fb7185;border-radius:8px;padding:6px 0;font-size:12px;cursor:pointer">清除已保存的 Key</button>
           <div class="hint" id="cn-hint">保存后会加密存在本机（仅当前 Windows 用户可解密），重启自动填充。</div>
@@ -975,7 +978,10 @@ function storage(t) {
     ['⑤', '记忆层', 'MEMORY', C.amber, (mem.units || S.counts.units || 0), '条记忆',
       `边 ${fmt(mem.links || 0)} · 印迹 ${fmt(mem.engrams)} · 桥 ${fmt(mem.bridges)}`, null, '全库 /stats'],
     ['⑥', '检索 · 推理', 'RETRIEVE · LLM', C.pink, (ret.traces || 0), '次召回',
-      `全量推理 ${fmt(llm.requests || 0)} · 7天 ${((llm.tokens || 0) / 1e6).toFixed(2)}M tok · 最近 ${ret.last_latency ? (ret.last_latency / 1000).toFixed(1) + 's' : '—'}`, ret.last_ts, '本插件累计 · 多口径'],
+      /* 口径拆分：traces 是本地与 Hindsight 去重后的总数，
+         legacy_traces / local_traces 由 server.js 一并透出。
+         副行同时列出两源读数，避免「总数」被误读成单一引擎的统计。 */
+      `本地 ${fmt(ret.local_traces || 0)} · Hindsight ${fmt(ret.legacy_traces || 0)}${llm.requests ? ' · 推理 ' + fmt(llm.requests) : ''}${ret.last_latency ? ' · ' + (ret.last_latency / 1000).toFixed(1) + 's' : ''}`, ret.last_ts, '本插件累计 · 多口径'],
   ];
   let y = RAIL.y - 6;
   const tw = measure('架构分层', F(800, 19));
@@ -3005,6 +3011,78 @@ if ($('cn-clear')) $('cn-clear').addEventListener('click', async () => {
     } else if (hint) hint.textContent = '清除失败：' + (j.error || 'unknown')
   } catch (e) { if (hint) hint.textContent = '清除失败：' + e.message }
 });
+
+// ── 「检测 Hindsight」向导：三步探测（端口 / API / LLM）──
+// 为什么单独探测 LLM：Hindsight 没配 LLM 时服务照样能起、/health 照样 healthy、
+// banks 列表照样能拉，但 retain 会失败 —— 面板全绿却一条记忆也写不进去。
+// 这是最难自查的故障态，所以第③步会真的调一次 LLM（dry-run-extract，不落库）。
+const _probeSteps = [
+  { key: 'port', label: '端口可达' },
+  { key: 'api', label: 'API 可用' },
+  { key: 'llm', label: 'LLM 可用' },
+];
+
+function _probeRow(icon, color, text) {
+  return `<div style="color:#9fb6c9;margin:1px 0"><span style="color:${color};font-weight:700">${icon}</span> ${text}</div>`;
+}
+
+function renderProbe(out) {
+  const box = $('cn-probe-out');
+  if (!box) return;
+  box.style.display = 'block';
+  let html = '';
+  for (const s of _probeSteps) {
+    const st = (out.steps && out.steps[s.key]) || {};
+    if (st.skipped) { html += _probeRow('○', '#64748b', `${s.label}：跳过（${st.detail || '前置步骤未通过'}）`); continue }
+    const ok = !!st.ok;
+    html += _probeRow(ok ? '✓' : '✗', ok ? '#4ade80' : (s.key === 'llm' && out.steps.port.ok && out.steps.api.ok ? '#fbbf24' : '#fb7185'),
+      `${s.label}：${st.detail || (ok ? '正常' : '失败')}`);
+  }
+  if (out.steps.api && out.steps.api.chosen) {
+    html += `<div style="color:#64748b;margin-top:4px">选用的 bank：${out.steps.api.chosen}</div>`;
+  }
+  if (out.ok) {
+    html += _probeRow('●', '#4ade80', '三步全通过，语义增强可用（local ↔ hybrid 自动切换）');
+  } else if (out.steps.port.ok && out.steps.api.ok && !out.steps.llm.ok) {
+    // 最需要显眼警告的一种：服务在跑，但记忆写不进去
+    html += `<div style="color:#fbbf24;margin-top:6px;padding:6px 8px;background:rgba(251,191,36,.10);border-radius:6px;line-height:1.6">
+      ⚠ Hindsight 服务是通的，但 <b>LLM 不可用</b>。<br>这种状态下记忆<b>写得进去但抽不出事实</b>，
+      等于没有语义增强。请检查 Hindsight 那边的 <code>HINDSIGHT_API_LLM_PROVIDER</code> /
+      <code>MODEL</code> / <code>API_KEY</code> 配置后重启服务。<br>
+      与此同时本插件已自动回退到<b>本地四臂</b>，所有功能照常可用。</div>`;
+  } else {
+    html += `<div style="color:#64748b;margin-top:6px">已回退到本地四臂，所有功能照常可用。</div>`;
+  }
+  box.innerHTML = html;
+}
+
+async function runProbe() {
+  const btn = $('cn-probe');
+  const box = $('cn-probe-out');
+  if (btn) { btn.disabled = true; btn.textContent = '检测中…（约 2 秒）' }
+  if (box) { box.style.display = 'block'; box.innerHTML = '<div style="color:#64748b">正在探测：端口 → API → LLM …</div>' }
+  try {
+    // 先保存当前输入的地址，保证探测用的是用户刚填的那一个
+    const url = ($('cn-url')?.value || '').trim();
+    const keyVal = ($('cn-key')?.value || '').trim();
+    const saveBody = {};
+    if (url) saveBody.hindsightUrl = url;
+    if (keyVal) saveBody.hindsightKey = keyVal;
+    if (Object.keys(saveBody).length) {
+      await fetch('/connection-settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(saveBody) });
+      if ($('cn-key')) $('cn-key').value = '';
+    }
+    const r = await fetch('/hindsight-probe');
+    const j = await r.json();
+    renderProbe(j);
+    loadConn(); refreshTopbar();
+  } catch (e) {
+    if (box) box.innerHTML = _probeRow('✗', '#fb7185', '检测失败：' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '检测 Hindsight（三步）' }
+  }
+}
+if ($('cn-probe')) $('cn-probe').addEventListener('click', runProbe);
 
 if ($('ws-manual')) $('ws-manual').addEventListener('click', () => { wsSettings.mode='manual'; renderWs(); });
 if ($('ws-auto')) $('ws-auto').addEventListener('click', () => { wsSettings.mode='auto'; renderWs(); });
