@@ -206,8 +206,15 @@ export class MemoryNebulaServer {
     this.graphBusy = true
     try {
       const g = await this.engine.graph()
+      // 节点数受 cfg.graphNodes 限制：全量节点会让 /state 膨胀到数 MB，
+      // 浏览器渲染星图时直接卡死白屏（实测 2.8 万节点 -> 8.5 MB）。
+      // 按 ts 倒序取最近的，保证星图上看到的是「新近」的部分。
+      const allNodes = Array.isArray(g.nodes) ? g.nodes : []
+      const limited = allNodes.length > this.cfg.graphNodes
+        ? allNodes.slice().sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0)).slice(0, this.cfg.graphNodes)
+        : allNodes
       // 旧面板用节点 w 表示新旧程度（影响节点大小/亮度）；按 ts 补算真实权重。
-      const nodes = (g.nodes || []).map((n) => ({ ...n, w: recencyWeight(Number(n.ts) || 0) }))
+      const nodes = limited.map((n) => ({ ...n, w: recencyWeight(Number(n.ts) || 0) }))
       const previousIds = new Set(this.graph.nodes.map((n) => n.id))
       const nextNodes = nodes.filter((n) => !previousIds.has(n.id)).slice(0, 30)
       // 旧全功能面板的 buildGraph 期望边是 [a,b,w] 三元组；转成该格式。
