@@ -12,11 +12,11 @@
  *
  * 用法（在插件目录）：
  *   node scripts/mirror-edges.mjs
- *   HINDSIGHT_URL=http://127.0.0.1:8888 BANK=coding-agent::DSHN node scripts/mirror-edges.mjs
+ *   HINDSIGHT_URL=http://127.0.0.1:8888 BANK=<你的 bank> node scripts/mirror-edges.mjs
  *
  * 环境变量：
  *   HINDSIGHT_URL  Hindsight API（默认 http://127.0.0.1:8888）
- *   BANK           源 bank（默认 coding-agent::DSHN）
+ *   BANK           源 bank（必填，缺失时直接报错退出）
  *   DATA_DIR       本地记忆目录（默认 %DSH_HOME%/memory-nebula-data）
  *   PER_TYPE_LIMIT 每类最多取多少条边（默认 20000，即 Hindsight 单类上限）
  *   SKIP_EXISTING  设 1 跳过本地已有边的端点对（默认 1，增量友好）
@@ -30,7 +30,13 @@ const require = createRequire(import.meta.url)
 const { NebulaMemory } = require('../memory/index.mjs')
 
 const HINDSIGHT_URL = String(process.env.HINDSIGHT_URL || 'http://127.0.0.1:8888').replace(/\/+$/, '')
-const BANK = String(process.env.BANK || 'coding-agent::DSHN')
+const BANK = String(process.env.BANK || '').trim()
+if (!BANK) {
+  // 不猜 bank：猜错会静默拉空数据，不如直接告诉用户要填什么
+  console.error('缺少 BANK：请用环境变量指定要镜像的 bank，例如')
+  console.error('  BANK=<你的 bank> node scripts/mirror-edges.mjs')
+  process.exit(1)
+}
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(HOME, 'memory-nebula-data'))
 const PER_TYPE_LIMIT = Math.max(100, Number(process.env.PER_TYPE_LIMIT) || 20000)

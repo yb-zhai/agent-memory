@@ -98,7 +98,7 @@
 
   <!-- ============ 实际库图 ============ -->
   <section>
-    <h2><span class="no">00</span>实际的库图 <small>运行实例真实画面（hybrid 模式 · coding-agent::DSHN）</small></h2>
+    <h2><span class="no">00</span>实际的库图 <small>运行实例真实画面（hybrid 模式 · 示例 bank）</small></h2>
     <div class="secline"></div>
     <div class="imgcard">
       <div class="cap"><span class="t">记忆星云 MEMORY NEBULA · 面板实测截图</span>
@@ -249,10 +249,10 @@
           <text x="756" y="172">trace.jsonl 最近 200 条召回轨迹 · 原子写 tmp+rename</text>
         </g>
 
-        <text x="756" y="220" fill="#fbbf24" font-size="12" font-weight="700">Hindsight HTTP API :8888 · bank coding-agent::DSHN</text>
+        <text x="756" y="220" fill="#fbbf24" font-size="12" font-weight="700">Hindsight HTTP API :8888 · bank &lt;你的 bank&gt;</text>
         <g fill="#f3ddb0" font-size="10.5">
           <text x="756" y="240">PostgreSQL：nodes / links / documents（实测 2.9 万记忆 · 98 万边）</text>
-          <text x="756" y="258">LLM MiniMax-M3.1-Flash 自动抽取事实（world/experience/observation）</text>
+          <text x="756" y="258">LLM（任意 provider）自动抽取事实（world/experience/observation）</text>
           <text x="756" y="276">e5 embedding · 语义/关键词/重排三路打分</text>
           <text x="756" y="296" fill="#fbbf24" font-weight="600">★ 联网 · 抽取与召回产生 token 费用</text>
           <text x="756" y="311" fill="#fcd34d" font-size="9.5">额度/worker 状态由 cost-guard 统一管</text>
@@ -365,9 +365,9 @@
         <g fill="#dbe7f3" font-size="11">
           <text x="1028" y="62" fill="#fbbf24" font-weight="600" text-anchor="middle">会话 → Hindsight 自动入库</text>
           <text x="1028" y="78" fill="#8ea3c8" font-size="9.5" text-anchor="middle">DSHN 侧导入 / 增量同步</text>
-          <text x="1028" y="112" fill="#fbbf24" font-weight="600" text-anchor="middle">LLM 抽取 · MiniMax-M3.1-Flash</text>
+          <text x="1028" y="112" fill="#fbbf24" font-weight="600" text-anchor="middle">LLM 抽取 · 任意 provider</text>
           <text x="1028" y="128" fill="#8ea3c8" font-size="9.5" text-anchor="middle">world / experience / observation</text>
-          <text x="1028" y="162" fill="#fbbf24" font-weight="600" text-anchor="middle">Postgres · coding-agent::DSHN</text>
+          <text x="1028" y="162" fill="#fbbf24" font-weight="600" text-anchor="middle">Postgres · &lt;你的 bank&gt;</text>
           <text x="1028" y="178" fill="#8ea3c8" font-size="9.5" text-anchor="middle">28,703 记忆 · 980,112 边</text>
         </g>
 
@@ -444,7 +444,7 @@
         </g>
         <g font-size="11.5">
           <text x="806" y="331" fill="#fbbf24" font-weight="600" text-anchor="middle">POST /memories/recall</text>
-          <text x="806" y="350" fill="#8ea3c8" font-size="9.5" text-anchor="middle">bank coding-agent::DSHN · 30s 超时</text>
+          <text x="806" y="350" fill="#8ea3c8" font-size="9.5" text-anchor="middle">bank &lt;你的 bank&gt; · 30s 超时</text>
           <text x="806" y="391" fill="#fbbf24" font-weight="600" text-anchor="middle">semantic · keyword · reranker</text>
           <text x="806" y="410" fill="#8ea3c8" font-size="9.5" text-anchor="middle">embedding + LLM 重排三路打分</text>
           <text x="806" y="451" fill="#fbbf24" font-weight="600" text-anchor="middle">HIND 命中（type + scores）</text>
@@ -545,7 +545,7 @@
             检索层四段 = <span class="num">LEX 40 · ACT 12 · GRAPH 120 · PROFILE 1 + HIND 30</span>；动力学 种子18·1跳20·2跳36·休眠28,195；数据链卡 双源 本/HIND 24k/27k、分层 ev/fg/sm 6955/17k/1、边 语/赫/显 41k/62/0、活性 醒/眠 74/28k；拼上下文 候选169·丢弃161。</td></tr>
 
         <tr><td class="k">服务对象<i>SERVE</i></td>
-          <td class="v"><span class="lead">DSH 编码 Agent 与会话</span>（bank=<span class="mono">coding-agent::DSHN</span>，空配置时自动选记忆最多的 bank）；同时承接<span class="lead">Memory 的镜像导入</span>（<span class="mono">scripts/mirror-hindsight.mjs · mirror-edges.mjs</span>，断点续导、推荐 NO_DEDUPE），让本地库建立真实记忆层，不再空面板。</td></tr>
+          <td class="v"><span class="lead">DSH 编码 Agent 与会话</span>（bank 由 <span class="mono">MEMORY_NEBULA_BANK</span> 指定，空配置时自动选记忆最多的 bank）；同时承接<span class="lead">Memory 的镜像导入</span>（<span class="mono">scripts/mirror-hindsight.mjs · mirror-edges.mjs</span>，断点续导、推荐 NO_DEDUPE），让本地库建立真实记忆层，不再空面板。</td></tr>
 
         <tr><td class="k">记什么<i>WHAT</i></td>
           <td class="v"><span class="lead">双源各记各的。</span>
@@ -555,7 +555,7 @@
         <tr><td class="k">提炼方式<i>EXTRACT</i></td>
           <td class="v"><span class="lead">两套提炼，成本天差地别。</span>
             <span class="tag l">本地 = 纯正则规则</span>：「我叫X」「我偏好…」等模式匹配 → <span class="mono">looksLikeFact</span> 过滤 + 同文本去重（保高 importance），零 LLM、零费用、毫秒级；提炼后靠 <span class="tag l">FSRS/Hebbian</span> 动力学成长与遗忘。
-            <span class="tag h">Hindsight = LLM 自动抽取</span>：MiniMax-M3.1-Flash 从会话抽事实 + e5 embedding + 语义/关键词/重排打分，<b style="color:#fbbf24">联网、产生 token 费用</b>（截图实测 7 天 11.68M tok）。</td></tr>
+            <span class="tag h">Hindsight = LLM 自动抽取</span>：LLM 从会话抽事实 + embedding + 语义/关键词/重排打分，<b style="color:#fbbf24">联网、产生 token 费用</b>（截图实测 7 天 11.68M tok）。</td></tr>
 
         <tr><td class="k">分库<i>BANK</i></td>
           <td class="v"><span class="lead">两级分库。</span>
