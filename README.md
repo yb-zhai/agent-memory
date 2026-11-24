@@ -473,6 +473,20 @@ Nebula Memory 有两档能力：
 
 ---
 
+## 版本说明（三条独立版本线，别混淆）
+
+本项目对外有三条版本线，**各自独立是设计如此**，不要以为它们应该相等：
+
+| 版本线 | 当前 | 代表什么 | 谁在读 |
+|---|---|---|---|
+| **DSH 插件** `dsh-memory-nebula` | 1.3.x | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
+| **npm 包** `nebula-memory-mcp` | 1.2.x | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor 等接入 | npm / npx 用户 |
+| **MCP Registry 条目** | 1.5.x | Registry 上的发布版本，指向某一版 npm 包 | MCP 客户端 |
+
+**为什么不同**：三个包的内容与用途根本不同——DSH 插件带面板和 HTTP 服务，npm 包只有一个 MCP 入口文件，Registry 条目是发布记录。强行统一版本号只会让"同名不同物"更混乱。
+
+**真正必须一致的是同一包内部**：例如 DSH 插件的 `package.json` 版本与 `server.js` 的 `VERSION` 必须相等，否则 `install.ps1` 的健康检查会判定升级失败并回滚。这是安装机制的要求，与上面三条版本线无关。
+
 ## 安装到 DSH
 
 如果你在用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以安装这个插件，获得完整的「记忆星云」可视化面板。
