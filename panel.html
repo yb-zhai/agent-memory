@@ -26,7 +26,9 @@
 .dot.steady{animation:none}
   .dot.amber{background:#fbbf24;animation:blink 1.4s ease-in-out infinite}
   .dot.pink{background:#f472b6;animation:blink 1.4s ease-in-out infinite}
-  .dot.red{background:#fb7185}.dot.gray{background:#3a4d60}
+  .dot.red{background:#fb7185;animation:blink 1.4s ease-in-out infinite}
+  .dot.red.steady{animation:none}
+  .dot.gray{background:#3a4d60}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
   #tb-status{margin-left:auto;display:flex;align-items:center;gap:14px}
   .tb-btn{background:rgba(13,21,32,.9);border:1px solid rgba(120,180,220,.18);color:#dbe7f3;
@@ -2892,7 +2894,9 @@ async function refreshTopbar() {
       const kind = q.kind || (free >= 3 ? 'quota' : (q.tripped ? 'trip' : null));
       if ($('sc-quota')) $('sc-quota').textContent =
         kind === 'quota' ? ('拒付 ' + free) : (kind === 'trip' ? '本地熔断' : '正常');
-      setDot('sc-quota-dot', kind ? 'red' : 'green');
+      // 额度灯三态：正常绿闪 / 拒付红闪 / 熔断红常亮（red.steady 双类优先于 red 的闪烁）
+      const quotaDotCls = kind === 'quota' ? 'red' : kind === 'trip' ? 'red steady' : 'green';
+      setDot('sc-quota-dot', quotaDotCls);
       const banner = $('quota-banner');
       if (banner) {
         if (!kind) {
