@@ -8,7 +8,7 @@
  * Panel key: `memory-nebula`。
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-memory-nebula',
+  id: 'dsh-nebula-memory',
   factory: (require) => {
     const react = require('react');
     const { useEffect, useState } = react;
@@ -50,7 +50,7 @@ window.__ModuleLoader__.load({
             });
             if (!res.ok) return 0;
             const json = await res.json();
-            return json && json.service === 'dsh-memory-nebula' ? port : 0;
+            return json && json.service === 'dsh-nebula-memory' ? port : 0;
           } catch {
             return 0;
           }

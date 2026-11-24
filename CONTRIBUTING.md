@@ -37,7 +37,7 @@ PowerShell 编码、性能测量、评测数据落盘等场景下踩过的坑与
 
 ```bash
 node server.js
-curl http://127.0.0.1:8898/healthz        # 应返回 service: dsh-memory-nebula
+curl http://127.0.0.1:8898/healthz        # 应返回 service: dsh-nebula-memory
 curl http://127.0.0.1:8898/state          # 应返回合法 JSON
 ```
 
@@ -157,7 +157,7 @@ npm run release:rc              # 1.4.0-rc.1
 
 发版前请至少验证：
 
-- 启动正常：`node server.js` 后 `curl http://127.0.0.1:8898/healthz` 返回 `service: dsh-memory-nebula`
+- 启动正常：`node server.js` 后 `curl http://127.0.0.1:8898/healthz` 返回 `service: dsh-nebula-memory`
 - 版本一致：`/healthz` 返回的 `version` 等于 `package.json` 的 `version`
 - 旧版数据可读：用旧版写入的记忆，新版升级后仍能召回
 - `nodes.jsonl` / `edges.jsonl` 未被安装器替换

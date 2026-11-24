@@ -523,7 +523,7 @@ Nebula Memory 有两档能力：
 
 | 版本线 | 当前 | 代表什么 | 谁在读 |
 |---|---|---|---|
-| **DSH 插件** `dsh-memory-nebula` | 1.3.13 | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
+| **DSH 插件** `dsh-nebula-memory` | 1.3.13 | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
 | **npm 包** `nebula-memory-mcp` | 1.2.1 | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor 等接入 | npm / npx 用户 |
 | **MCP Registry 条目** | 1.5.x | Registry 上的发布版本，指向某一版 npm 包 | MCP 客户端 |
 
@@ -701,9 +701,9 @@ Hindsight 读取标准环境变量 `http_proxy` / `https_proxy` / `NO_PROXY`
 
 1. **停掉服务**：面板右上角关闭，或结束 `server.js` 子进程
 2. **恢复代码**：把 `backup\code\plugin\` 覆盖回
-   `~\.dsh\plugins\dsh-memory-nebula\`；
+   `~\.dsh\plugins\dsh-nebula-memory\`；
    把 `backup\code\profile-module\` 覆盖回
-   `~\.dsh\profiles\desktop\node_modules\dsh-memory-nebula\`
+   `~\.dsh\profiles\desktop\node_modules\dsh-nebula-memory\`
 3. **恢复数据**（仅在数据被改坏时）：把 `backup\data\` 覆盖回记忆目录
 4. **恢复配置**：把 `backup\memory-nebula.json` 覆盖回 `~\.dsh\memory-nebula.json`
 5. **重启 DSH**

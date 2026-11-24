@@ -45,7 +45,7 @@ function readPackageVersion() {
 }
 
 export const VERSION = readPackageVersion()
-const SERVICE = 'dsh-memory-nebula'
+const SERVICE = 'dsh-nebula-memory'
 // 本进程启动时刻（epoch ms）：旧面板用它对比 state.ts 判断是否连到了旧进程
 const STARTED_AT = Date.now()
 

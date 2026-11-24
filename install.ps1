@@ -158,8 +158,8 @@ if (-not $DshHome) { $DshHome = Join-Path $env:USERPROFILE '.dsh' }
 $DshHome = [System.IO.Path]::GetFullPath($DshHome).TrimEnd('\')
 $profileDir = Join-Path $DshHome (Join-Path 'profiles' $Profile)
 $manifestPath = Join-Path $profileDir 'package.json'
-$installRoot = Join-Path $DshHome 'plugins\dsh-memory-nebula'
-$moduleDir = Join-Path $profileDir 'node_modules\dsh-memory-nebula'
+$installRoot = Join-Path $DshHome 'plugins\dsh-nebula-memory'
+$moduleDir = Join-Path $profileDir 'node_modules\dsh-nebula-memory'
 $configPath = Join-Path $DshHome 'memory-nebula.json'
 $backupBase = Join-Path $DshHome 'backups\memory-nebula'
 
@@ -265,7 +265,7 @@ function Get-OwnedServers {
             if (-not [System.IO.Path]::IsPathRooted($entry)) { continue }
             $entry = [System.IO.Path]::GetFullPath($entry)
         } catch { continue }
-        if ($entry -notmatch 'dsh-memory-nebula[\\/]server\.js$') { continue }
+        if ($entry -notmatch 'dsh-nebula-memory[\\/]server\.js$') { continue }
         if (Test-SameOrChild $entry $DshHome) { $found += $process }
     }
     return @($found)
@@ -355,7 +355,7 @@ function Invoke-HealthCheck([string]$runtime, [string]$serverPath, [string]$logD
             if ($process.HasExited) { break }
             try {
                 $candidate = Invoke-RestMethod "http://127.0.0.1:$port/healthz" -TimeoutSec 2
-                if ($candidate.service -eq 'dsh-memory-nebula' -and $candidate.ready -eq $true) { $health = $candidate; break }
+                if ($candidate.service -eq 'dsh-nebula-memory' -and $candidate.ready -eq $true) { $health = $candidate; break }
             } catch { Start-Sleep -Milliseconds 250 }
         }
         if (-not $health) {
@@ -363,7 +363,7 @@ function Invoke-HealthCheck([string]$runtime, [string]$serverPath, [string]$logD
             if (Test-Path -LiteralPath $stderr) { $errorTail = (Get-Content -LiteralPath $stderr -Tail 20 -ErrorAction SilentlyContinue) -join "`n" }
             throw "新版健康检查失败（进程退出或超时）。$errorTail"
         }
-        if (-not $health.ok -or -not $health.ready -or $health.service -ne 'dsh-memory-nebula') { throw '新版健康检查返回了无效或未就绪的服务状态。' }
+        if (-not $health.ok -or -not $health.ready -or $health.service -ne 'dsh-nebula-memory') { throw '新版健康检查返回了无效或未就绪的服务状态。' }
         if ([string]$health.version -ne [string]$expectedVersion) {
             throw "新版健康检查版本不符：期望 $expectedVersion，实际 $($health.version)。"
         }
@@ -461,7 +461,7 @@ function Restore-Directory([string]$target, [string]$rollback, [bool]$existed, [
 $pkgPath = Join-Path $source 'package.json'
 if (-not (Test-Path -LiteralPath $pkgPath)) { throw "找不到 $pkgPath，请在解压后的插件目录中运行本脚本。" }
 $pkg = [System.IO.File]::ReadAllText($pkgPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-if ($pkg.name -ne 'dsh-memory-nebula') { throw "package.json 的 name 不是 dsh-memory-nebula：$($pkg.name)" }
+if ($pkg.name -ne 'dsh-nebula-memory') { throw "package.json 的 name 不是 dsh-nebula-memory：$($pkg.name)" }
 
 # ---- 前置校验：版本号单一真源必须是可用的 -----------------------------------
 # 1.3.14 起版本号只有一处权威来源：package.json 的 version。
@@ -656,14 +656,14 @@ try {
     if (-not $manifest.dependencies) {
         $manifest | Add-Member -NotePropertyName dependencies -NotePropertyValue ([pscustomobject]@{}) -Force
     }
-    $manifest.dependencies | Add-Member -NotePropertyName 'dsh-memory-nebula' -NotePropertyValue $fileSpec -Force
+    $manifest.dependencies | Add-Member -NotePropertyName 'dsh-nebula-memory' -NotePropertyValue $fileSpec -Force
     if (-not $manifest.dsh) {
         $manifest | Add-Member -NotePropertyName dsh -NotePropertyValue ([pscustomobject]@{ profile = [pscustomobject]@{ bundles = @() } }) -Force
     }
     if (-not $manifest.dsh.profile) {
         $manifest.dsh | Add-Member -NotePropertyName profile -NotePropertyValue ([pscustomobject]@{ bundles = @() }) -Force
     }
-    if (-not ($bundles -contains 'dsh-memory-nebula')) { $bundles += 'dsh-memory-nebula' }
+    if (-not ($bundles -contains 'dsh-nebula-memory')) { $bundles += 'dsh-nebula-memory' }
     $manifest.dsh.profile | Add-Member -NotePropertyName bundles -NotePropertyValue @($bundles) -Force
     [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 20), $utf8NoBom)
 

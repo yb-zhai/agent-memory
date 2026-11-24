@@ -14,7 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const name = 'dsh-memory-nebula'
+export const name = 'dsh-nebula-memory'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const SERVER = path.join(__dirname, 'server.js')
@@ -49,7 +49,7 @@ async function probe(port) {
     const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(1200) })
     if (!res.ok) return false
     const json = await res.json()
-    return json && json.service === 'dsh-memory-nebula'
+    return json && json.service === 'dsh-nebula-memory'
   } catch {
     return false
   }

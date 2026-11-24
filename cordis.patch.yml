@@ -1,5 +1,5 @@
 # Bundle patch: insert the Host row so the Client half (main panel + sidebar entry) loads.
 - insert:
     - id: memory-nebula
-      name: 'dsh-memory-nebula'
+      name: 'dsh-nebula-memory'
       config: {}

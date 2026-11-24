@@ -19,8 +19,8 @@ if (-not $DshHome) { $DshHome = Join-Path $env:USERPROFILE '.dsh' }
 $DshHome = [System.IO.Path]::GetFullPath($DshHome).TrimEnd('\')
 $profileDir = Join-Path $DshHome (Join-Path 'profiles' $Profile)
 $manifestPath = Join-Path $profileDir 'package.json'
-$installRoot = Join-Path $DshHome 'plugins\dsh-memory-nebula'
-$moduleDir = Join-Path $profileDir 'node_modules\dsh-memory-nebula'
+$installRoot = Join-Path $DshHome 'plugins\dsh-nebula-memory'
+$moduleDir = Join-Path $profileDir 'node_modules\dsh-nebula-memory'
 
 Write-Host ''
 Write-Host '记忆星云 / Memory Nebula 卸载器' -ForegroundColor Cyan
@@ -41,13 +41,13 @@ if ($DryRun) {
     Write-Host '[DryRun] 未改动任何文件。将移除：' -ForegroundColor Yellow
     Write-Host "  - $moduleDir"
     if (-not $KeepSource) { Write-Host "  - $installRoot" }
-    Write-Host "  - $manifestPath 中的 dependencies['dsh-memory-nebula'] 与 bundles 条目"
+    Write-Host "  - $manifestPath 中的 dependencies['dsh-nebula-memory'] 与 bundles 条目"
     exit 0
 }
 
 # ---- stop the panel server -------------------------------------------------
 $servers = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -and $_.CommandLine -match 'dsh-memory-nebula[\\/]server\.js' }
+    Where-Object { $_.CommandLine -and $_.CommandLine -match 'dsh-nebula-memory[\\/]server\.js' }
 foreach ($server in $servers) {
     try {
         Stop-Process -Id $server.ProcessId -Force -ErrorAction Stop
@@ -70,11 +70,11 @@ if (Test-Path -LiteralPath $manifestPath) {
     Copy-Item -LiteralPath $manifestPath -Destination ("$manifestPath.bak-brain-nebula-" + (Get-Date -Format 'yyyyMMdd-HHmmss')) -Force
     $manifest = [System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
 
-    if ($manifest.dependencies -and $manifest.dependencies.PSObject.Properties['dsh-memory-nebula']) {
-        $manifest.dependencies.PSObject.Properties.Remove('dsh-memory-nebula')
+    if ($manifest.dependencies -and $manifest.dependencies.PSObject.Properties['dsh-nebula-memory']) {
+        $manifest.dependencies.PSObject.Properties.Remove('dsh-nebula-memory')
     }
     if ($manifest.dsh -and $manifest.dsh.profile -and $manifest.dsh.profile.bundles) {
-        $manifest.dsh.profile.bundles = @($manifest.dsh.profile.bundles | Where-Object { $_ -ne 'dsh-memory-nebula' })
+        $manifest.dsh.profile.bundles = @($manifest.dsh.profile.bundles | Where-Object { $_ -ne 'dsh-nebula-memory' })
     }
 
     [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 20), $utf8NoBom)
