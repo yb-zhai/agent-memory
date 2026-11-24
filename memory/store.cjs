@@ -91,6 +91,7 @@ const DEFAULTS = {
   observeConsolidateEvery: 20, // observe() 每 N 轮触发一次巩固
   observeConsolidateDays: 1, // 或距上次巩固超过 A 天
   tickConsolidateDays: 1, // tick() 里距上次巩固超过 A 天才真正巩固
+  summaryRefreshMs: 300000, // tick() 里多久刷一次 L3 画像摘要（默认 5 分钟；0 = 每次 tick 都算一遍）
   autoCompactRatio: 2.5, // 追加行数 > 存活×该比例 → 自动调度压缩（0 = 关闭自动压缩）
   autoCompactDelayMs: 5000, // 跨过阈值后延迟这么多毫秒再压（防抖：写突发结束才动手）
 };
@@ -468,6 +469,7 @@ class NebulaMemory {
     this._traceLines = 0;
     this._traceSeq = 0;
     this._lastConsolidateAt = 0;
+    this._lastSummaryRefreshAt = 0; // L3 画像摘要上次刷新的时刻（tick 节流用）
     this._lastTickAt = 0;
     this._observeTurns = 0;
     this._turnCounter = 0;
@@ -1027,7 +1029,10 @@ class NebulaMemory {
     }
 
     // 5) L3 画像摘要（确定性模板；没有任何画像/事实素材时返回 null）
+    // consolidate 刚处理完 episode/fact，画像素材可能变了，这里无条件重算一次。
+    // refreshSummary 内部已保证"内容未变不写盘"，所以不会产生重复行。
     const summary = dynamics.refreshSummary(this, { now });
+    this._lastSummaryRefreshAt = now;
 
     this._lastConsolidateAt = now;
     this._flushPending();
@@ -1417,7 +1422,19 @@ class NebulaMemory {
     let summary = null;
     let consolidated = null;
     if (!dryRun) {
-      summary = dynamics.refreshSummary(this, { now });
+      // L3 画像摘要按 summaryRefreshMs 节流。
+      // tick() 由 server 每 refreshMs(1500ms) 调一次，而画像变化很慢，
+      // 没必要每次 tick 都重算并（在内容变化时）重写节点。
+      // 0 表示不节流（每次 tick 都算一遍），便于测试。
+      const summaryInterval = Math.max(0, num(this.opts.summaryRefreshMs, 300000));
+      const summaryDue =
+        summaryInterval === 0 ||
+        !this._lastSummaryRefreshAt ||
+        now - num(this._lastSummaryRefreshAt, 0) >= summaryInterval;
+      if (summaryDue) {
+        summary = dynamics.refreshSummary(this, { now });
+        this._lastSummaryRefreshAt = now;
+      }
       const due =
         !this._lastConsolidateAt ||
         now - num(this._lastConsolidateAt, 0) >=

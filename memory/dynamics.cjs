@@ -454,8 +454,12 @@ function findSummaryNode(mem) {
 }
 
 /**
- * 刷新 L3 画像摘要节点（没有就创建，有就原地重写）。
+ * 刷新 L3 画像摘要节点（没有就创建，内容有变化才原地重写）。
  * 返回 {id, updated, created} 或 null（没有任何画像/事实素材时）。
+ *
+ * 重要：内容未变时**不写盘**。
+ * 早期实现每次调用都 _rewriteNode（无条件追加一行），而 tick() 每 1.5s
+ * 调一次，导致同一条画像摘要被追加数万行。见 2026-11-24 修复记录。
  *
  * @param {any} mem
  * @param {{now?:number}} [opts]
@@ -467,13 +471,16 @@ function refreshSummary(mem, opts = {}) {
   const existing = findSummaryNode(mem);
   if (existing) {
     const changed = existing.text !== built.text;
+    // 内容没变：不重写、不追加、不刷 ts。
+    // 保留 didChange=false 让调用方知道"调过但无事发生"。
+    if (!changed) return { id: existing.id, updated: false, created: false, didChange: false };
     mem._rewriteNode(existing, {
       text: built.text,
       ts: now,
       importance: Math.max(num(existing.importance, 0), 0.95),
       meta: { ...(existing.meta || {}), [SUMMARY_META_KEY]: true, sources: built.sources, updatedAt: now },
     });
-    return { id: existing.id, updated: changed, created: false };
+    return { id: existing.id, updated: true, created: false, didChange: true };
   }
   const node = mem._buildRecord({
     text: built.text,
@@ -487,7 +494,7 @@ function refreshSummary(mem, opts = {}) {
   });
   node._tf = mem._tfFor(node);
   mem._insertNode(node);
-  return { id: node.id, updated: true, created: true };
+  return { id: node.id, updated: true, created: true, didChange: true };
 }
 
 module.exports = {
