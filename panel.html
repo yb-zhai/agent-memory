@@ -23,7 +23,8 @@
   .sc-k{color:#7d93a8}.sc-v{color:#dbe7f3;font-weight:600}
   .dot{width:8px;height:8px;border-radius:50%;background:#3a4d60;flex:none}
   .dot.green{background:#a3e635;animation:blink 1.4s ease-in-out infinite}
-  .dot.amber{background:#fbbf24}
+.dot.steady{animation:none}
+  .dot.amber{background:#fbbf24;animation:blink 1.4s ease-in-out infinite}
   .dot.red{background:#fb7185}.dot.gray{background:#3a4d60}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
   #tb-status{margin-left:auto;display:flex;align-items:center;gap:14px}
@@ -2827,6 +2828,7 @@ async function refreshTopbar() {
   const st = await fetch('/state').then(r => r.ok ? r.json() : null).catch(() => null);
   if (st && st.version) setPluginVersion(st.version);
   const ws = await fetch('/worker-settings').then(r => r.ok ? r.json() : null).catch(() => null);
+  const wrt = await fetch('/worker-status').then(r => r.ok ? r.json() : null).catch(() => null);
   const q = await fetch('/quota-status').then(r => r.ok ? r.json() : null).catch(() => null);
   try {
     // 模式徽标（local/hybrid）+ Hindsight 叠加
@@ -2851,18 +2853,23 @@ async function refreshTopbar() {
       };
       const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
       const onMin = inWindow(ws.on), offMin = inWindow(ws.off);
-      let active;
+      // 四态（2026-11-24）：关(灰常亮)/定时待机(黄闪)/自动待机(绿常亮)/运行(绿闪)
+      // auto 档以 /worker-status.active（Hindsight processing>0）为准，
+      // 端点不可用时回退为绿闪（旧行为），避免误报空闲。
+      let state = 'running';
       if (ws.mode === 'auto') {
-        active = true; // 自动档脱离时段，随时可能调度
+        state = (wrt && wrt.available && !wrt.active) ? 'standby-auto' : 'running';
       } else if (onMin != null && offMin != null) {
-        active = onMin <= offMin
+        const inWin = onMin <= offMin
           ? (nowMin >= onMin && nowMin < offMin)      // 同一天时段
           : (nowMin >= onMin || nowMin < offMin);     // 跨午夜时段（如 23:00-08:00）
-      } else {
-        active = true;
+        state = inWin ? 'running' : 'standby-manual';
       }
-      if ($('sc-worker')) $('sc-worker').textContent = active ? '运行中' : '待机';
-      setDot('sc-worker-dot', active ? 'green' : 'amber');
+      if ($('sc-worker')) $('sc-worker').textContent = state === 'running' ? '运行中' : '待机';
+      const wd = $('sc-worker-dot');
+      if (wd) wd.className = state === 'standby-auto' ? 'dot green steady'
+                         : state === 'standby-manual' ? 'dot amber'
+                         : 'dot green';
     }
 
     // 额度状态：把「本地熔断」和「上游拒付」分开说，避免让人以为要充值

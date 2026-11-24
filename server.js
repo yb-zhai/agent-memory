@@ -513,6 +513,46 @@ export class MemoryNebulaServer {
   }
 
   /**
+   * 读 worker 实时运行状态（2026-11-24 加）
+   *
+   * 面板需要区分「自动待机」与「运行中」：旧逻辑把 auto 模式一律判为运行中（绿闪），
+   * 因为拿不到 worker 是否真的在处理任务。Hindsight 自带 operations 端点支持
+   * status=processing 过滤，这就是精确信号：
+   *   processing > 0 → worker 真的在干活
+   *   processing = 0 且 pending > 0 → 开启但空闲
+   * 端点调用超时 2 秒，失败时 available=false，面板回退为「未知」，不阻塞。
+   */
+  async readWorkerRuntime() {
+    const settings = await this.readWorkerSettings()
+    const out = { available: false, active: false, processing: 0, pending: 0, error: null }
+    if (settings.schedulerEnabled === false) return { ...out, settings }
+
+    const base = this.cfg.hindsightUrl
+    const bank = this.engine?.hindsight?.bank || this.cfg.bank
+    if (!base || !bank) return { ...out, settings, error: 'hindsight 未连接' }
+
+    try {
+      const root = `${base}/v1/default/banks/${encodeURIComponent(bank)}/operations`
+      const fetchOps = async (status) => {
+        const ctl = new AbortController()
+        const timer = setTimeout(() => ctl.abort(), 2000)
+        try {
+          const r = await fetch(`${root}?status=${status}&limit=1`, {
+            signal: ctl.signal, headers: { accept: 'application/json' },
+          })
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          const j = await r.json()
+          return Number(j.total) || 0
+        } finally { clearTimeout(timer) }
+      }
+      const [processing, pending] = await Promise.all([fetchOps('processing'), fetchOps('pending')])
+      return { available: true, active: processing > 0, processing, pending, settings, error: null }
+    } catch (e) {
+      return { ...out, settings, error: e.message }
+    }
+  }
+
+  /**
    * 读 Hindsight 额度/凭证状态（来自 cost-guard.state.json，零成本）。
    * 返回 { ok:boolean, quotaExhausted:boolean, errorsFreeHour:number, tripped:boolean,
    *        checkedAt:string|null, available:boolean }
@@ -635,6 +675,10 @@ export class MemoryNebulaServer {
         }
         return
       }
+    }
+    if (pathname === '/worker-status') {
+      sendJson(res, 200, await this.readWorkerRuntime())
+      return
     }
     if (pathname === '/quota-status') {
       sendJson(res, 200, await this.readQuotaStatus())
