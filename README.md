@@ -397,8 +397,6 @@ Nebula Memory 把 JSONL 只当**持久化介质**，在上面跑了一个**零�
 
 > 如果你只要极简文本转储，简单 json 文件够用；如果你要**图谱联想、时间衰减、离线可解释的召回**，才需要这套。
 
-> 顺带一提：我们真的实现过 SQLite 版并跑了完整基准（内存 175MB→16MB、启动 915ms→3.7ms，但查询反而慢一半、图扩散慢 10 倍）。结论是**当前量级不值得换**，测试脚本与完整数据见 [为什么坚持纯 JSONL](https://github.com/yb-zhai/sqlite-bench/blob/main/README-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%9D%9A%E6%8C%81%E7%BA%AFJSONL.md)。
-
 ### Q：本地 JSONL 是不是意味着只能本地用、不能上云？
 
 不是。本地 JSONL 是**唯一事实来源**（Single Source of Truth），目的是数据主权、零延迟、断网可用。但这不等于「只能本地」——可选的 **Hindsight 增强层**对接的是 HTTP API，可以本地也可以远程部署，与本地引擎是解耦的。
