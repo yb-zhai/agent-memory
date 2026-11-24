@@ -6,7 +6,7 @@
 >
 > 需要语义增强（Hindsight）的话，走 DSH 插件面板那条路——面板支持双引擎叠加。
 > Hindsight 是[开源项目](https://github.com/vectorize-io/hindsight)，服务端需自行安装，
-> 详见 [README 的「关于语义增强」](../README.md#关于语义增强hindsight)。MCP 入口暂未接入它。
+> 详见 [README 的「关于语义增强」](../README.md#双引擎架构本地四臂-与-hindsight)。MCP 入口暂未接入它。
 
 ---
 
