@@ -534,7 +534,23 @@ export class MemoryNebulaServer {
 
     // 种子全量透传（不截断）：引擎侧已按 graphSeeds=18 产出，
     // 这里再 slice(0,8) 会让面板看到的种子数少于实际点亮数，星云与统计对不上。
-    const seeds = (result.seeds || []).map((s) => (typeof s === 'string' ? { id: s, text: s } : { id: s.id, text: String(s.text || '').slice(0, 120) }))
+    //
+    // 注意：引擎返回的 seed 只有 { id, score }（见 memory/recall.cjs），
+    // 没有 text。过去这里直接读 s.text，导致面板拿到的种子正文恒为空。
+    // 现在按 id 回查本地库补上文本。
+    const seedLocal = this.engine?.local?.mem
+    const seeds = (result.seeds || []).map((s) => {
+      if (typeof s === 'string') {
+        const node = seedLocal?.nodes?.get(s)
+        return { id: s, text: String(node?.text || '').slice(0, 120) }
+      }
+      let text = String(s.text || '')
+      if (!text && seedLocal?.nodes && s.id) {
+        const node = seedLocal.nodes.get(s.id)
+        if (node) text = String(node.text || '')
+      }
+      return { id: s.id, text: text.slice(0, 120) }
+    })
     // 真实统计：四臂命中数 / 候选 / tokensUsed / dropped
     const stats = result.stats || {}
     const arms = stats.arms || {}
