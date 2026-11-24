@@ -20,7 +20,9 @@ param(
     [ValidateRange(1, 20)][int]$KeepBackups = 5,
     [ValidateRange(5, 120)][int]$HealthTimeoutSec = 30,
     [switch]$DryRun,
-    [switch]$AllowRunning
+    [switch]$AllowRunning,
+    [switch]$SelfUpdate,
+    [switch]$SkipSelfUpdate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +30,129 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $source = $PSScriptRoot
 if (-not $source) { $source = Split-Path -Parent $MyInvocation.MyCommand.Path }
 $source = [System.IO.Path]::GetFullPath($source).TrimEnd('\')
+# ---- 自更新：让旧版安装器也能用上新逻辑 ------------------------------------
+# 背景：install.ps1 本身不会自更新，用户手上的旧版永远只有旧校验。
+# 这里在**做任何校验之前**先检查脚本自身是否落后于 git 仓库，落后则提示或
+# （显式加 -SelfUpdate 时）拉取新版并重新执行。
+#
+# 设计约束：
+#   - 默认只提示，不擅自改动工作区；-SelfUpdate 才真的 pull。
+#   - 需要 $source 是 git 工作树，否则跳过（zip 安装的用户不受影响）。
+#   - 任何异常都不阻断原流程：自更新是增强项，不是安装的前置条件。
+function Invoke-SelfUpdateCheck {
+    param([string]$Dir, [switch]$DoUpdate)
+
+    $gitDir = Join-Path $Dir '.git'
+    if (-not (Test-Path -LiteralPath $gitDir)) {
+        return @{ Status = 'not-git' }
+    }
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        return @{ Status = 'no-git' }
+    }
+
+    # 只在干净工作树上操作，避免覆盖用户本地改动
+    $dirty = & $git.Source -C $Dir status --porcelain 2>$null
+    if ($LASTEXITCODE -ne 0) { return @{ Status = 'git-error' } }
+    if ($dirty) {
+        return @{ Status = 'dirty'; Detail = (@($dirty) -join '; ') }
+    }
+
+    & $git.Source -C $Dir fetch --quiet origin 2>$null
+    if ($LASTEXITCODE -ne 0) { return @{ Status = 'fetch-failed' } }
+
+    $branch = (& $git.Source -C $Dir rev-parse --abbrev-ref HEAD 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $branch) { return @{ Status = 'no-branch' } }
+    if ($branch -eq 'HEAD') { return @{ Status = 'detached' } }
+
+    $local = (& $git.Source -C $Dir rev-parse HEAD 2>$null)
+    $remote = (& $git.Source -C $Dir rev-parse "origin/$branch" 2>$null)
+    if (-not $local -or -not $remote) { return @{ Status = 'git-error' } }
+    if ($local -eq $remote) { return @{ Status = 'up-to-date' } }
+
+    # 是否真的落后（remote 包含 local 的全部提交）
+    & $git.Source -C $Dir merge-base --is-ancestor $local $remote 2>$null
+    $behind = ($LASTEXITCODE -eq 0)
+
+    $changedSelf = (& $git.Source -C $Dir diff --name-only "$local..$remote" -- install.ps1 2>$null)
+
+    if ($DoUpdate -and $behind) {
+        & $git.Source -C $Dir pull --ff-only --quiet 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return @{ Status = 'pull-failed'; Local = $local; Remote = $remote }
+        }
+        return @{ Status = 'updated'; Local = $local; Remote = $remote;
+                  SelfChanged = [bool]$changedSelf }
+    }
+    return @{ Status = $(if ($behind) { 'behind' } else { 'diverged' });
+              Local = $local; Remote = $remote; SelfChanged = [bool]$changedSelf }
+}
+
+$selfUpdateReexec = $false
+if (-not $SkipSelfUpdate -and $source) {
+    try {
+        $su = Invoke-SelfUpdateCheck -Dir $source -DoUpdate:$SelfUpdate
+        switch ($su.Status) {
+            'updated' {
+                Write-Host '[自更新] 已拉取新版本。' -ForegroundColor Green
+                if (-not $su.SelfChanged) {
+                    Write-Host '         install.ps1 本身未变化，继续使用当前逻辑。' -ForegroundColor DarkGray
+                } else {
+                    Write-Host '         install.ps1 已更新，将用新版重新执行。' -ForegroundColor Green
+                }
+            }
+            'behind' {
+                Write-Host '[自更新] 检测到安装器版本落后于仓库。' -ForegroundColor Yellow
+                if ($su.SelfChanged) {
+                    Write-Host '         仓库中的 install.ps1 有更新，建议先更新再安装：' -ForegroundColor Yellow
+                } else {
+                    Write-Host '         安装逻辑本身未变化，可继续安装；如需最新代码请先更新：' -ForegroundColor Yellow
+                }
+                Write-Host "         git -C `"$source`" pull" -ForegroundColor Yellow
+                Write-Host '         或本次直接加 -SelfUpdate 让安装器自动拉取。' -ForegroundColor Yellow
+            }
+            'diverged' {
+                Write-Host '[自更新] 本地与远程已分叉，跳过自动更新以免覆盖改动。' -ForegroundColor DarkYellow
+            }
+            'dirty' {
+                Write-Host '[自更新] 工作区有未提交改动，跳过自动更新。' -ForegroundColor DarkGray
+            }
+            'fetch-failed' {
+                Write-Host '[自更新] 无法连接远程仓库，跳过（不影响安装）。' -ForegroundColor DarkGray
+            }
+            'no-git' {
+                Write-Host '[自更新] 未安装 git，跳过自更新检查。' -ForegroundColor DarkGray
+            }
+            'not-git' {
+                # 压缩包安装：静默跳过，不打扰用户
+            }
+            'detached' {
+                Write-Host '[自更新] 当前处于 detached HEAD，跳过自更新。' -ForegroundColor DarkGray
+            }
+        }
+        if ($su.Status -eq 'updated' -and $su.SelfChanged) { $selfUpdateReexec = $true }
+    } catch {
+        Write-Host "[自更新] 检查失败（不影响安装）：$($_.Exception.Message)" -ForegroundColor DarkGray
+    }
+}
+
+# 拉到了新版自身：用新脚本重新执行，其余参数原样透传
+if ($selfUpdateReexec) {
+    Write-Host '[自更新] 以新版 install.ps1 重新执行...' -ForegroundColor Green
+    $reexecArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-SkipSelfUpdate')
+    foreach ($kv in @{
+        Profile = $Profile; DshHome = $DshHome; HindsightDir = $HindsightDir
+        DataDir = $DataDir; RuntimePath = $RuntimePath
+        KeepBackups = $KeepBackups; HealthTimeoutSec = $HealthTimeoutSec
+    }.GetEnumerator()) {
+        if ($kv.Value) { $reexecArgs += @("-$($kv.Key)", [string]$kv.Value) }
+    }
+    if ($DryRun) { $reexecArgs += '-DryRun' }
+    if ($AllowRunning) { $reexecArgs += '-AllowRunning' }
+    & $PSCommandPath @reexecArgs
+    exit $LASTEXITCODE
+}
+
 
 if (-not $DshHome) { $DshHome = Join-Path $env:USERPROFILE '.dsh' }
 $DshHome = [System.IO.Path]::GetFullPath($DshHome).TrimEnd('\')

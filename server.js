@@ -30,7 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PANEL = path.join(__dirname, 'panel.html')
 const ICON = path.join(__dirname, 'icon.svg')
 
-export const VERSION = '1.3.12'
+export const VERSION = '1.3.13'
 const SERVICE = 'dsh-memory-nebula'
 // 本进程启动时刻（epoch ms）：旧面板用它对比 state.ts 判断是否连到了旧进程
 const STARTED_AT = Date.now()
