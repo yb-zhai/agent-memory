@@ -478,26 +478,73 @@ Nebula Memory 有两档能力：
 | 档位 | 是什么 | 现在能用到吗 |
 |---|---|---|
 | **本地四臂（默认）** | 词法 + 激活 + 图扩散 + 画像，纯本地、零依赖、零成本 | ✅ **开箱即用**，这就是你装完就能用的东西 |
-| **语义增强（Hindsight）** | 额外的 LLM 语义检索，召回更"懂意思" | ❌ **暂未提供**，原因见下 |
+| **语义增强（Hindsight）** | 额外的 LLM 语义检索，召回更"懂意思" | ⚙️ **需自行安装 Hindsight**，见下 |
 
-### 为什么「语义增强」现在没开源？
+### 语义增强是什么？为什么不打包进来？
 
-它不是一个"文件"或"一行配置"，而是一整套**独立的重型系统**：
-
-- 需要一个 **Postgres 数据库**；
-- 需要一个 **LLM**（要花钱调 API）；
-- 还需要 **worker 后台调度 + 额度熔断** 等一整套运维；
-- 整套体积很大（模型文件就几个 GB）。
+「语义增强」由 [**Hindsight**](https://github.com/vectorize-io/hindsight) 提供 ——
+**那是 vectorize-io 的第三方开源项目，不是本仓库的组成部分**。它自带 FastAPI 服务、
+PostgreSQL 数据库、LLM 事实抽取链路，模型文件就有几个 GB。
 
 **把它塞进安装包，会破坏这个项目最核心的优点——「零依赖、装完即用、不花钱」。**
 
-所以现在的策略是：**先只开放「本地四臂」这一档**，它已经能解决大部分 Agent 记忆需求，而且是零依赖、零成本的。
+所以这里的选择是：**默认只装「本地四臂」这一档**（零依赖、零成本、开箱即用），
+想用语义增强的人自己去装 Hindsight，本插件负责接上去。
 
-### 以后会怎样？（Roadmap）
+### 想用语义增强？三步
 
-插件**已经预留了接口**（`HINDSIGHT_URL` 环境变量）——如果你自己恰好有一套兼容的 Hindsight 服务，填上地址就能自动叠加（每 30 秒探测一次，`local` ↔ `hybrid` 自动切换）。
+**第 1 步：装 Hindsight 服务端**（三选一，官方文档见 [hindsight.vectorize.io](https://hindsight.vectorize.io)）
 
-**标准安装暂不含 Hindsight**。等我们把「语义增强」做成更轻、更容易装的形式（比如轻量 embedding，或云端服务），再提供给大家。
+```bash
+# 方式 A：pip（会自动带上嵌入式 PostgreSQL）
+pip install hindsight-all
+
+# 方式 B：Docker（最省事，不用管 Python 环境）
+docker run -it --name hindsight --restart unless-stopped -p 8888:8888 \
+  -e HINDSIGHT_API_LLM_API_KEY=你的key \
+  -v $HOME/.hindsight-docker:/home/hindsight/.pg0 \
+  ghcr.io/vectorize-io/hindsight:latest
+```
+
+**方式 C：自己起 PostgreSQL**，设 `HINDSIGHT_API_DATABASE_URL=postgresql://...`
+
+**第 2 步：给 Hindsight 配一个 LLM**（必须，否则记忆写不进去）
+
+```powershell
+# Windows PowerShell
+$env:PYTHONUTF8 = '1'                        # ← 见下方说明，中文系统必设
+$env:HINDSIGHT_API_LLM_PROVIDER = 'openai'   # 也支持 anthropic / gemini / groq / ollama 等
+$env:HINDSIGHT_API_LLM_MODEL    = 'gpt-4o-mini'
+$env:HINDSIGHT_API_LLM_API_KEY  = 'sk-...'
+hindsight-api --host 127.0.0.1 --port 8888
+```
+
+> **中文 Windows 必看：`PYTHONUTF8=1` 不能省。**
+> Hindsight 启动时会打印一个 Unicode 横幅。中文 Windows 的默认代码页是 GBK，
+> 直接运行会崩在 `UnicodeEncodeError: 'gbk' codec can't encode character '\u2580'`，
+> 服务起不来，而且报错看起来跟 Hindsight 本身毫无关系。设上这个环境变量即可绕过。
+> 用 Docker 方式装则不需要管这一条。
+
+**第 3 步：打开面板 → 设置 → 点「检测 Hindsight」**
+
+向导会自动探测三步，全部通过才认为可用：
+
+| 步骤 | 检测什么 | 失败时 |
+|---|---|---|
+| ① 端口 | `/health` 能通、数据库已连接 | 回退本地四臂，不影响使用 |
+| ② API | banks 列表 + 版本号 | 回退本地四臂 |
+| ③ **LLM** | 用 `dry-run-extract` 做一次最小抽取（不落库） | 能连但写不进，向导会明确警告 |
+
+> **第③步为什么单独拎出来**：Hindsight 没配 LLM 时，服务照样能起、`/health` 照样 healthy、
+> banks 列表照样能拉 —— 一切看起来都正常，但 `retain` 会失败，记忆一条也存不进去。
+> 这是最难自查的故障态，所以向导会真的调一次 LLM 来验证。
+
+检测通过后，面板每 30 秒自动探测一次，`local` ↔ `hybrid` 平滑切换，Hindsight 中途挂掉也不影响本地记忆。
+
+### 现在还用不上？完全没问题
+
+本地四臂已经能覆盖大部分 Agent 记忆需求，零依赖、零成本、装完即用，是这个项目当前最可靠的部分。
+语义增强是「可选、可预期、成本透明」的增强项，不需要可以先不管。
 
 ### 成本透明：语义增强到底花多少钱？
 
