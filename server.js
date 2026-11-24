@@ -14,6 +14,7 @@
  *   MEMORY_NEBULA_BANK           指定 Hindsight bank（留空自动选）
  *   MEMORY_NEBULA_HINDSIGHT_KEY  Hindsight API key（可选，经 Authorization 头带上；插件不落盘）
  *   MEMORY_NEBULA_DISABLE_HINDSIGHT  设 1 强制禁用 Hindsight 叠加
+ *   MEMORY_NEBULA_SANITIZE_CONTENT   设 0 关闭写入清洗（默认开：剔除思考标签、丢弃纯 JSON 工具输出）
  */
 import http from 'node:http'
 import fs from 'node:fs'
@@ -99,6 +100,9 @@ export function loadConfig(overrides = {}) {
     hindsightRecallTimeoutMs: clampInt(env('HINDSIGHT_RECALL_TIMEOUT_MS') || overrides.hindsightRecallTimeoutMs, 3000, 500, 15000),
     recallTopK: clampInt(overrides.recallTopK, 8, 1, 24),
     budgetChars: clampInt(overrides.budgetChars, 1400, 200, 4000),
+    // 写入时清洗正文（剔除思考标签、丢弃纯 JSON 工具输出）。默认开；
+    // 设 MEMORY_NEBULA_SANITIZE_CONTENT=0 可关闭，让正文原样存储。
+    sanitizeContent: env('SANITIZE_CONTENT') !== '0' && overrides.sanitizeContent !== false,
   }
 
   // Hindsight 叠加默认开，除非显式禁用

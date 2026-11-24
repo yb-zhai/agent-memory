@@ -72,6 +72,7 @@ const DEFAULTS = {
   pendingFlushAt: 48, // 内存里攒多少次访问更新后批量落盘
   compactionRatio: 2.5, // jsonl 行数 > 存活数×该比例 时在 close 时压缩
   minScore: 0.01, // recall 最低分（过滤纯噪音命中）
+  sanitizeContent: true, // 写入时清洗正文（剔除思考标签、丢弃纯 JSON 工具输出）；关掉则原样存储
 
   // —— v2 记忆星云：召回片段 / trace / 动力学 ——
   recallTopK: 8, // recallFragments 默认返回片段数
@@ -2239,9 +2240,13 @@ class NebulaMemory {
   // -------------------------------------------------------------------------
 
   _buildRecord(input) {
-    // 两道清洗串联：cleanText 处理空白/不可见字符，sanitizeMemoryText 剔除
-    // 思考标签、丢弃纯 JSON 工具输出并做长度保护。
-    const sanitized = sanitizeMemoryText(cleanText(input.text), { role: input.role });
+    // cleanText 处理空白/不可见字符（始终执行）。
+    // 清洗思考标签/工具原始输出是可选的：由 opts.sanitizeContent 控制，
+    // 关掉后正文原样存储，只保留 cleanText 的基础处理。
+    const base = cleanText(input.text);
+    const sanitized = this.opts.sanitizeContent
+      ? sanitizeMemoryText(base, { role: input.role })
+      : base;
     if (!sanitized) {
       throw new TypeError('memory: remember({ text }) 需要非空文本');
     }
