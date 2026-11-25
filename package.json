@@ -49,7 +49,9 @@
         "release:major": "release-it major",
         "release:pre": "release-it --preRelease=beta",
         "release:rc": "release-it --preRelease=rc",
-        "changelog": "release-it --changelog"
+        "changelog": "release-it --changelog",
+        "check:hindsight": "node scripts/check-hindsight-compat.mjs",
+        "check:hindsight:json": "node scripts/check-hindsight-compat.mjs --json"
     },
     "dsh": {
         "bundle": {
