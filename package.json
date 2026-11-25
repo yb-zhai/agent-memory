@@ -4,6 +4,8 @@
     "private": true,
     "type": "module",
     "description": "DSH memory nebula — a self-contained memory panel + zero-dependency local memory engine (NebulaMemory JSONL), with optional Hindsight HTTP API overlay. Packable standalone, installable into any DSH.",
+    "license": "MIT",
+    "author": "yb-zhai",
     "icon": "assets/icon-180.png",
     "main": "index.js",
     "exports": {

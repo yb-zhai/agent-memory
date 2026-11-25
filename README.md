@@ -1109,6 +1109,14 @@ Hindsight 兼容性检查 · http://127.0.0.1:8888
 
 [MIT License](LICENSE) © 2026 yb-zhai
 
+本项目**零运行时依赖**，代码、文档、图表素材全部自研，均以 MIT 授权，可自由使用、修改、分发、商用。
+
+唯一的例外是**可选的** [Hindsight](https://github.com/vectorize-io/hindsight) 后端：
+它由使用者自行安装，不随本仓库分发，许可归上游（MIT）。
+
+> **二次创作与分发**：保留 `LICENSE` 与版权声明、注明作者与出处即可。
+> 第三方声明、素材来源和详细须知见 [NOTICE.md](NOTICE.md)。
+
 ---
 
 ## 关于本项目
