@@ -60,7 +60,7 @@ Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来�
 * 发布包排除基准测试的结果数据文件 ([7d3e9e3](https://github.com/yb-zhai/agent-memory/commit/7d3e9e3ddfdebc4874a03a00afb6ff6922355512))
 * 更新宣传图（去掉包名文字），精简市场截图清单 ([eeaf28c](https://github.com/yb-zhai/agent-memory/commit/eeaf28c9498588bd8111b175484c47312d9472cb))
 * 加入市场截图声明与宣传图 ([2e965ab](https://github.com/yb-zhai/agent-memory/commit/2e965ab415a1af8e584498c5a6c0d6181873ddd6))
-* 生成 PNG 图标，为插件市场上架做准备 ([a882733](https://github.com/yb-zhai/agent-memory/commit/a882733256b43062101402b0eadf480c1d75ca24)), references [#38e1ff](https://github.com/yb-zhai/agent-memory/issues/38e1ff) [#a78bfa](https://github.com/yb-zhai/agent-memory/issues/a78bfa) [#fbbf24](https://github.com/yb-zhai/agent-memory/issues/fbbf24)
+* 生成 PNG 图标，为插件市场上架做准备 ([a882733](https://github.com/yb-zhai/agent-memory/commit/a882733256b43062101402b0eadf480c1d75ca24))
 
 ### CI
 
