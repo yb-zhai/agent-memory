@@ -9,6 +9,13 @@
 # Upgrade transaction:
 #   stop old sidecar -> verified backup -> staged code swap -> health check
 #   any failure after the swap restores code, config, manifest and memory data.
+#
+# 不要手动「只拷文件夹」安装：
+#   把目录放进 profiles/<profile>/node_modules 只是复制了代码，
+#   DSH 还要求该项目登记在 profile package.json 的 dependencies 里
+#   （本脚本见「在 profile 清单里登记这个插件」那一段）。
+#   少了登记，DSH 不会加载它，面板与插件都不会出现。
+#   要么用 dsh plugin --profile <p> add ...，要么用本脚本。
 
 [CmdletBinding()]
 param(
@@ -653,6 +660,11 @@ try {
     $config | Add-Member -NotePropertyName dataDir -NotePropertyValue $DataDir -Force
     [System.IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json -Depth 20), $utf8NoBom)
 
+    # ── 在 profile 清单里登记这个插件 ──────────────────────────────────────
+    # 只把文件夹拷进 node_modules 是**装不上的**：DSH 加载插件看的是 profile
+    # package.json 的 dependencies 里有没有这一条（以及 dsh.profile.bundles）。
+    # 只拷目录的话，插件不会出现在 DSH 的插件列表里，面板也就起不来。
+    # 下面这段就是补上这一步；手动安装的人如果跳过了脚本，必须自己照做。
     if (-not $manifest.dependencies) {
         $manifest | Add-Member -NotePropertyName dependencies -NotePropertyValue ([pscustomobject]@{}) -Force
     }
