@@ -113,6 +113,32 @@ curl http://127.0.0.1:8898/state          # 应返回合法 JSON
 
 `install.ps1` 在安装前会校验：`version` 是合法 SemVer，且 `server.js` 确实从
 `package.json` 读取版本。若你在 `server.js` 里重新写死常量，安装会被拒绝。
+### 发版时必须同步 README 的版本表
+
+**README 里有两张手写的版本表，`release-it` 不会更新它们**，升版本时要手动改：
+
+| 位置 | 表 |
+|---|---|
+| 开头「版本线：4 个发布物」 | 4 行表 |
+| 「版本说明（四条独立版本线）」 | 同内容的 4 行表（描述更详细） |
+
+两张表都要改，只改一处会造成前后不一致。
+
+**核对另外三条版本线时以代码为准，不要凭印象**：
+
+```powershell
+node -e "console.log(require('./package.json').version)"        # 1. DSH 插件
+npm view nebula-memory-mcp version                              # 2. npm 包（线上）
+node -e "console.log(require('./server.json').version)"         # 3. Registry 条目
+Select-String -Path mcp-server.mjs -Pattern "^  version:"       # 4. 自报版本
+```
+
+> 2026-11-26 实测：2.0.1 和 2.0.2 两次发版后，两张表都还停在 2.0.0，
+> 直到有人翻 README 才发现（提交 `671ba4b`）。这类「文档真源」和
+> 「代码真源」脱节的问题不会报错，只会慢慢失真 —— 所以写进流程，不要靠记性。
+
+**不要改的地方**：README 顶部面板动画那句「v2.0.0 实测」是**截图录制时的版本**，
+不是当前版本声明，升级时保持原样。
 
 ### 提交信息规范（Conventional Commits）
 
