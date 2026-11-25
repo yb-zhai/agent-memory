@@ -149,7 +149,7 @@ function layout() {
   const mainW = W - mainX - 24;
   const cardsW = Math.round(mainW * 0.30);
   const netW = mainW - cardsW - GAP;
-  const retH = 156, ctxH = 94;   // 拼上下文压到一行串联（118 → 94），星图多出 24px
+  const retH = 184, ctxH = 94;   // +28px 给 RRF 融合指示带（原 156，四臂下方无空间显示融合过程）
   // 检索层与顶部 #topbar（HEADER_H=48）留出 10px 空隙：原来框体上沿在 46px 处，
   // 直接被状态栏压住，看起来"粘"在一起。
   const y0 = HEADER_INSET + 26;   // RET.y = y0-12 → 距状态栏 14px，和它到动力学层的间距一致
@@ -975,7 +975,7 @@ function storage(t) {
       `待办 ${conv.todos || 0} · 子代理 ${conv.subagents || 0} · 主力 ${top1[0]} ${top1[1]}`, conv.last_ts, '仅最新会话'],
     ['④', '抽取层', 'EXTRACT', C.lime, (ing.entities || 0), '个去重实体',
       `文档 ${ing.documents || 0} · 分块 ${fmt(ing.chunks)} · 实体被提及累计 ${fmt(ing.unit_entities)} 次`, null, '去重实体 / 累计提及'],
-    ['⑤', '记忆层', 'MEMORY', C.amber, (mem.units || S.counts.units || 0), '条记忆',
+    ['⑤', '记忆层', 'MEMORY', C.amber, (mem.units || S.counts.units || 0), '条 · 全库',
       `边 ${fmt(mem.links || 0)} · 印迹 ${fmt(mem.engrams)} · 桥 ${fmt(mem.bridges)}`, null, '全库 /stats'],
     ['⑥', '检索 · 推理', 'RETRIEVE · LLM', C.pink, (ret.traces || 0), '次召回',
       /* 口径拆分：traces 是本地与 Hindsight 去重后的总数，
@@ -1226,6 +1226,58 @@ function pipeline(t) {
       ctx.fillStyle = hexA(col, .55 + .35 * on); ctx.fill();
     }
   });
+
+  // ── RRF 融合指示：四臂各自命中 → RRF 倒数排名融合 → 最终候选 ──
+  // 为什么要有：之前只显示各臂命中数，看不出它们是怎么合并的。
+  // RRF 分数（1/(60+rank)，0.016~0.033）可读性差，这里只表达「融合动作」和「结果数量」。
+  {
+    const ry = sy + ch + 8;                    // 卡片下方 8px
+    const totalHits = arms ? (arms.lexical + arms.activation + arms.graph + arms.profile + hind) : 0;
+    const nCand = a && a.meta ? a.meta.n_candidates : null;
+    const nPick = a && a.meta ? (a.meta.n_candidates - (a.meta.dropped || 0)) : null;
+
+    // 左侧标签
+    const rrfLabel = 'RRF 融合';
+    const labW = measure(rrfLabel, F(700, 11)) + 20;
+    rr(x + 16, ry, labW, 20, 5);
+    ctx.fillStyle = hexA(C.violet, .14); ctx.fill();
+    ctx.strokeStyle = hexA(C.violet, .40); ctx.lineWidth = 1; ctx.stroke();
+    txt(rrfLabel, x + 16 + labW / 2, ry + 14, F(700, 11), hexA(C.violet, .95), 'center');
+
+    // 中间流向箭头 + 公式提示
+    const ax0 = x + 16 + labW + 10;
+    const ax1 = ax0 + 42;
+    ctx.strokeStyle = hexA(C.violet, totalHits > 0 ? .55 : .22);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(ax0, ry + 10);
+    ctx.lineTo(ax1 - 5, ry + 10);
+    ctx.stroke();
+    // 箭头头部
+    ctx.beginPath();
+    ctx.moveTo(ax1 - 5, ry + 10);
+    ctx.lineTo(ax1 - 11, ry + 7);
+    ctx.lineTo(ax1 - 11, ry + 13);
+    ctx.closePath();
+    ctx.fillStyle = hexA(C.violet, totalHits > 0 ? .55 : .22); ctx.fill();
+
+    // 结果文案
+    const parts = [];
+    if (totalHits > 0) parts.push(`命中 ${totalHits}`);
+    if (nCand != null) parts.push(`候选 ${nCand}`);
+    if (nPick != null) parts.push(`入选 ${nPick}`);
+    const resultTxt = a
+      ? ('本次召回 · ' + (parts.length ? parts.join(' · ') : '融合中'))
+      : '点右侧「试一次召回」查看本次召回结果';
+    txt(fitText(resultTxt, w - (ax1 - x) - 32, MONO(400, 10)),
+        ax1 + 6, ry + 14, MONO(400, 10),
+        hexA(totalHits > 0 ? C.cyan : C.dim, .95));
+
+    // 右侧公式（窄屏隐藏）
+    if (w > 620) {
+      txt('1/(k+rank) k=60', x + w - 16, ry + 14, MONO(400, 9), hexA(C.dim, .55), 'right');
+    }
+  }
 
   // 扫光：一条柔亮带沿四段管线缓慢巡游
   {
