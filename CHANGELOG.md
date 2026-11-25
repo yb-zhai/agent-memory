@@ -10,6 +10,63 @@
 Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
 
 
+## [2.0.1](https://github.com/yb-zhai/agent-memory/compare/v2.0.0...v2.0.1) (2026-11-25)
+
+### Fixed
+
+* 面板检测改为只读，不再把 key 落盘 ([d1e1259](https://github.com/yb-zhai/agent-memory/commit/d1e1259f6c73dad5b5f1a3a75cd1e7911a3dfba0))
+
+### Changed
+
+* 许可回到标准 MIT，署名要求改为 README 约定 ([e380dbd](https://github.com/yb-zhai/agent-memory/commit/e380dbd80f95c56cb446a9d50e9ee2facdcf61b0))
+
+### Docs
+
+* 补 NOTICE.md，package.json 补 license/author，README 扩充许可章节 ([9cb7b14](https://github.com/yb-zhai/agent-memory/commit/9cb7b145bca214e70d6816e3b32d60c894dbc5a9))
+* 澄清插件对 Hindsight 是只读的，不产生 retain 费用 ([90c669c](https://github.com/yb-zhai/agent-memory/commit/90c669c4313be7618d249c204f2d8d096225298b))
+* 二创要求写明确 —— 署名 + 仓库链接 + 注明修改 ([d43196c](https://github.com/yb-zhai/agent-memory/commit/d43196ccba02538e8d414626ff23b11b8814bb76))
+* 更新顶部面板动画到 v2.0.0 实测画面 ([78df649](https://github.com/yb-zhai/agent-memory/commit/78df649b879cb771abecb807a40297e658a0e827))
+* 加入 66 秒安装教程视频 ([68b363b](https://github.com/yb-zhai/agent-memory/commit/68b363b1595706ef898b5c4ef2cad1eefa9c1c38))
+* 视频入口改用播放器样式缩略图 ([180be17](https://github.com/yb-zhai/agent-memory/commit/180be170856f8952e51345424cd530b74a858506))
+* 新增 AGENTS.md，让新会话自动带上项目约定 ([c9f9685](https://github.com/yb-zhai/agent-memory/commit/c9f96852b34eafa37a605ba1612d3737be7de45b))
+* 许可改为 MIT + 附加署名条款（自定义许可） ([ab1a4be](https://github.com/yb-zhai/agent-memory/commit/ab1a4be53b14e1145015be687b37b8f3b7512b38))
+* 许可章节改成 dsh-pet 的项目符号格式 ([6aefb7f](https://github.com/yb-zhai/agent-memory/commit/6aefb7fff233ae7e58bcf944bc9a681627d780c4))
+* 在 README 与 CONTRIBUTING 补充钩子安装提示 ([9972b86](https://github.com/yb-zhai/agent-memory/commit/9972b86ef6ecfd40f262d319fa493e447d84bb03))
+* 自检条目补上附注 tag 要用 ^{commit} 解引用 ([924a651](https://github.com/yb-zhai/agent-memory/commit/924a65122fe1afecd4c36b22c5cc7fee13158d4b))
+* **chart:** 成本图补上价格免责声明 ([b0e7f24](https://github.com/yb-zhai/agent-memory/commit/b0e7f24dc7d8305a3f590dfdb78f83748fdd3a16))
+* **contributing:** 补 autocrlf 行尾自检条目 ([f375ffe](https://github.com/yb-zhai/agent-memory/commit/f375ffe2c341b7b96831e5184e98ba393a593e7b))
+* **install:** 注释里写明不能只拷文件夹安装 ([d128034](https://github.com/yb-zhai/agent-memory/commit/d128034eeff3b519a9730f6889414660f271ce6d))
+* README 加两行许可摘要，照常见开源项目格式 ([048fcc7](https://github.com/yb-zhai/agent-memory/commit/048fcc7f7c57b57c1d174f49b41a939e0fd30db4))
+* **readme:** 「上面三步装完」改为「整体安装完」 ([20befee](https://github.com/yb-zhai/agent-memory/commit/20befeef70046f3c379a3a418c261d651019deb2))
+* **readme:** 安装命令改成 dsh plugin add github:... ([6ab8888](https://github.com/yb-zhai/agent-memory/commit/6ab888884256c64689268cd51000a99cd6e0c468))
+* **readme:** 版本说明扩到四条，集成包补全内容说明 ([91c23db](https://github.com/yb-zhai/agent-memory/commit/91c23dbc6ba654c78282caad8bc23dc7520deee5))
+* **readme:** 版本说明前置到开头，并区分两个维度 ([e7d4c22](https://github.com/yb-zhai/agent-memory/commit/e7d4c22ca808af378f7bfec402770f79f3442843))
+* **readme:** 补上 install.ps1 这条带面板的装法 ([fbeab81](https://github.com/yb-zhai/agent-memory/commit/fbeab81c5a6dc03cc16ff57ecf971654f23470f4))
+* **readme:** 集成包章节加小播放器标签 ([e60658b](https://github.com/yb-zhai/agent-memory/commit/e60658bc77af5fbb8af428c7df45119090e4f7b5))
+* **readme:** 教程视频链接移到「DSH 集成包」章节 ([7a4117b](https://github.com/yb-zhai/agent-memory/commit/7a4117bff9c828350aa2fa1a0b76f2e3c642a838))
+* **readme:** 修正接入方式表的错误与误导 ([f342181](https://github.com/yb-zhai/agent-memory/commit/f342181a349e40b7e6d81b5db63b9f1fb8502315))
+* **readme:** Quick Start 前置，集成包补写两部分说明 ([fb0898e](https://github.com/yb-zhai/agent-memory/commit/fb0898e046767f51a5a3c10f7a53212cb723e9f0))
+
+### Test
+
+* 新增编码自检脚本，CONTRIBUTING 补 *.ps1 必须带 BOM ([7e4b38c](https://github.com/yb-zhai/agent-memory/commit/7e4b38c553ea5d7be4be16c24de3a7694612891b))
+
+### CI
+
+* 编码检查接入 pre-commit / CI / 发版前 ([7185023](https://github.com/yb-zhai/agent-memory/commit/71850231be598d7dc4cc0c1a09aff9097e654c40))
+
+# Changelog
+
+本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/)。
+版本变更由 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 自动推导，按以下三类呈现对使用者有影响的变更：
+
+- **Added** — 向下兼容的新功能（升 Minor）
+- **Fixed** — 向下兼容的缺陷修复（升 Patch）
+- **Changed / Breaking Changes** — 行为变化或不兼容的接口变更（升 Major）
+
+Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
+
+
 ## [2.0.0](https://github.com/yb-zhai/agent-memory/compare/v1.5.0...v2.0.0) (2026-11-25)
 
 ### ⚠ BREAKING CHANGES

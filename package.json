@@ -1,6 +1,6 @@
 {
     "name": "dsh-nebula-memory",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "private": true,
     "type": "module",
     "description": "DSH memory nebula — a self-contained memory panel + zero-dependency local memory engine (NebulaMemory JSONL), with optional Hindsight HTTP API overlay. Packable standalone, installable into any DSH.",
