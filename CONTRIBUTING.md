@@ -10,6 +10,23 @@ cd agent-memory
 node server.js          # 无需 npm install
 ```
 
+**克隆后请立刻装一次提交前钩子**（只需一次，每个克隆各装一次）：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+它会拦住两类靠肉眼和语法检查都发现不了的问题：
+
+- `*.ps1` 丢了 UTF-8 BOM —— PowerShell 5.1 会按 GBK 解析中文注释，报出和注释无关的语法错误；
+- 文件行尾被改成与仓库不一致的格式，导致 diff 变成整文件重写。
+
+**不装也能提交**（Git 不会因为缺钩子拒绝），但 CI 仍会拦下同一个问题——
+与其等 PR 变红，不如本地先拦住。临时绕过：`git commit --no-verify`。
+
+> CI 里 `.github/workflows/encoding-check.yml` 与发版前的 `before:init` 也会跑同一套检查，
+> 所以漏装钩子不会漏到 `main`；装钩子只是让问题在本地就暴露。
+
 浏览器打开 `http://127.0.0.1:8898/` 即可调试面板（纯 `local` 模式，不需要 Hindsight）。
 
 动手之前建议先读 [docs/工程经验记录.md](docs/工程经验记录.md)——里面记录了 Git 操作、

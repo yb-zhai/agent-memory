@@ -1123,6 +1123,20 @@ Hindsight 兼容性检查 · http://127.0.0.1:8888
 
 想深入了解设计取舍与优化数据（RRF 融合、并发召回、冷启动 5.9s→2.9s、成本实测），见 **[优化报告](docs/优化报告-2026-11-21.md)**。
 
+### 参与贡献
+
+欢迎 PR。开始前请读 [CONTRIBUTING.md](CONTRIBUTING.md)（硬性约束、代码风格、提交规范）。
+
+**克隆后请装一次提交前钩子**（每个克隆一次）：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+它会拦住两类靠肉眼和语法检查都发现不了的问题：`*.ps1` 丢 UTF-8 BOM（PowerShell 5.1 会按 GBK 解析中文注释，报出与注释无关的语法错误），以及文件行尾被改成与仓库不一致的格式。
+
+> 不装也能提交，CI（`.github/workflows/encoding-check.yml`）会把同一问题拦在 PR 上。
+
 ---
 
 ## 常见问题（FAQ）
