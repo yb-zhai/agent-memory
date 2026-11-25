@@ -51,7 +51,10 @@
         "release:rc": "release-it --preRelease=rc",
         "changelog": "release-it --changelog",
         "check:hindsight": "node scripts/check-hindsight-compat.mjs",
-        "check:hindsight:json": "node scripts/check-hindsight-compat.mjs --json"
+        "check:hindsight:json": "node scripts/check-hindsight-compat.mjs --json",
+        "check:encoding": "node scripts/check-encoding.mjs",
+        "check:encoding:strict": "node scripts/check-encoding.mjs --strict",
+        "check:encoding:all": "node scripts/check-encoding.mjs --all --strict"
     },
     "dsh": {
         "bundle": {

@@ -145,11 +145,54 @@ npm run release:major           # 不兼容变更发版
 |---|---|
 | 工作区干净 | `git status` 无意外改动 |
 | 内容正确 | 逐行看过 `git diff`，确认只有预期改动 |
-| 行尾与 BOM | 与文件原有格式一致（本仓库多为 LF 无 BOM；`install.ps1` 为 UTF-8 BOM + LF）。**改完看 `git diff --numstat`：若显示整文件重写（如 `1085 1085`）而不是 1~2 行，说明行尾被动了** |
+| 行尾与 BOM | `npm run check:encoding` 一键查（见下方「BOM 与行尾」）。**改完看 `git diff --numstat`：若显示整文件重写（如 `1085 1085`）而不是 1~2 行，说明行尾被动了** |
 | 文档引用 | 改了标题就复查锚点；`npm run check:hindsight` 可验接口契约 |
 | 代码可跑 | `node --check` 过语法，**并在浏览器/实际入口里真跑一遍** |
 | 版本三处一致 | 源码 `package.json` == 安装目录 `package.json` == 运行中 `/healthz` 返回的 `version`；tag 名应与 `package.json` 一致 |
 | tag 指向正确 | 见下方「校验 tag 指向」，必须用 `^{commit}` 解引用后再比 |
+
+#### BOM 与行尾：`*.ps1` 必须带 BOM，其余一律不带
+
+**判断标准是文件开头那 3 个字节，不是语法检查，也不是肉眼看代码。** 一条命令查完：
+
+```bash
+npm run check:encoding          # 只查 BOM（日常用这个）
+npm run check:encoding:all      # BOM + 仓库内行尾，严格模式
+```
+
+| 文件类型 | BOM | 行尾（仓库内） |
+|---|---|---|
+| `*.ps1`（`install.ps1` / `uninstall.ps1`） | **必须有** UTF-8 BOM | LF |
+| `*.mjs` / `*.cjs` / `*.js` / `*.html` / `*.cmd` / `*.json` | 无 | LF |
+| `*.md` | 无 | 不强制（Markdown 渲染与行尾无关） |
+
+> **行尾以「仓库内存储格式」为准。** 本仓库设了 `core.autocrlf=true`，工作区检出是 CRLF
+> 属正常现象；脚本查的是 `git show HEAD:<file>` 的内容，所以不会误报。
+
+##### 为什么 `*.ps1` 必须带 BOM
+
+PowerShell 5.1 读**无 BOM** 的 UTF-8 脚本时，会按系统 ANSI 代码页解析——中文 Windows 上是 GBK。
+脚本里的中文注释变成乱码后，可能吃掉后面的括号，报出像这样的错误：
+
+```
+At install.ps1:84 char:1
++ }
++ ~
+Unexpected token '}' in expression or statement.
+```
+
+这个报错和注释毫无关系，很难联想到编码问题。
+
+**真实教训**：给 `install.ps1` 加几行中文注释，编辑器顺手把 BOM 去掉了。结果：
+
+- `powershell -File install.ps1 -DryRun` → **第 84 行语法报错**（实际那里没有任何中文）
+- `[System.Management.Automation.PSParser]::Tokenize(...)` → **0 个错误**
+
+两个工具结论相反，很容易误判成「没问题」。补回 BOM 后 DryRun 立刻恢复正常。
+所以**别信语法检查，也别肉眼看**，直接验首字节，或者跑 `npm run check:encoding`。
+
+编辑器保存时去掉 BOM 是很常见的行为（VS Code、各种格式化工具都可能），
+改完 `.ps1` 一定要重跑一次这个检查。
 
 #### 校验 tag 指向：附注 tag 不能用 rev-parse 直接比
 
@@ -223,6 +266,11 @@ git diff --numstat <file>     # 应为 1 1 这种，不是 1085 1085
 > 后来改 README 一行字时又踩了行尾：手动把工作区统一成 LF，diff 变成整文件重写
 > （`1085 1085`）。**同一个坑踩了两次，原因不同但判据相同**——
 > 看 `git diff --numstat` 的行数，而不是盯着文件的实际行尾。详见上一节。
+>
+> 再后来给 `install.ps1` 加中文注释，编辑器把 BOM 去掉了：
+> `-DryRun` 报「第 84 行 Unexpected token '}'」（那里根本没有中文），
+> 而 PSParser 报 0 错误 —— **两个工具结论相反**。补回 BOM 即恢复。
+> 判据只能是文件首 3 个字节，`npm run check:encoding` 一条命令验。
 
 ### 预发布版本
 
