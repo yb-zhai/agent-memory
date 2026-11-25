@@ -736,9 +736,6 @@ Hindsight 读取标准环境变量 `http_proxy` / `https_proxy` / `NO_PROXY`
 
 如果你在用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以安装这个插件，获得完整的「记忆星云」可视化面板。
 
-> 📹 **不想看文字？有 66 秒实操视频** —— [安装教程视频](docs/tutorial-install.mp4)
-> （从装进 DSH 到接入 Hindsight、验证连通性，一路 demo 下来。竖屏 1080×1920，点开即播。）
-
 ### 最省事的方式：让 DSH 帮你装
 
 **直接把本仓库地址发给 DSH，对它说：**
@@ -769,6 +766,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ## DSH 集成包
 
 「DSH 集成包」就是本插件装进 DeepSeek Harness 之后的那一份，包含两部分：
+
+> 📹 **66 秒实操视频**：[安装教程视频](docs/tutorial-install.mp4)
+> —— 从装进 DSH 到接入 Hindsight、验证连通性，一路 demo 下来（竖屏 1080×1920，点开即播）。
 
 | 组成 | 内容 |
 |---|---|
