@@ -41,13 +41,29 @@
 
 下文 [`## 安装 / 接入方式`](#安装--接入方式) 里按 1~4 展开，对照着看：
 
-| 你的情况 | 用哪种 | 一条命令 / 入口 | 有面板？ | 有双引擎？ |
+| 你的情况 | 用哪种 | 入口 | 有面板？ | 有双引擎？ |
 |---|---|---|---|---|
-| **用 DSH（推荐）** | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | `dsh plugin --profile <profile> add github:yb-zhai/agent-memory` | ✅ | ✅（可选） |
+| **用 DSH（推荐）** | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | 见下方「方式 4 的三种装法」 | ✅ | ✅（可选） |
 | 用 DSH，但只想要记忆工具、不要面板 | **方式 3** MCP Server → [跳到该节](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等) | 挂 `nebula-memory-mcp` | ❌ | ❌ |
 | 用 **Claude / Cursor / ChatGPT** 等 | **方式 3** MCP Server | `npx nebula-memory-mcp` | ❌ | ❌ |
 | 写 **Node.js** 代码要嵌进去 | **方式 1** 作为库 → [跳到该节](#1-作为库nodejs任何模型可用) | `import { NebulaMemory }` | ❌ | ❌ |
 | 别的**语言 / 进程**要读写，或想裸起面板 | **方式 2** HTTP 服务 → [跳到该节](#2-作为独立-http-服务) | `node server.js` → `:8898` | ✅ | ✅（可选） |
+
+#### 方式 4（DSH 插件）的三种装法——**任选一种，装的是同一个东西**
+
+三种都装出带**完整面板 + 双引擎**的插件，落到同一个位置 `profiles/<profile>/node_modules/dsh-nebula-memory`：
+
+| 装法 | 命令 / 入口 | 适合 |
+|---|---|---|
+| **① 插件命令** | `dsh plugin --profile <profile> add github:yb-zhai/agent-memory` | **推荐**，一条命令，由 pnpm 安装并登记依赖 |
+| **② 安装脚本** | clone 后跑 `install.ps1`（或 `install.cmd`），默认 `-Profile desktop` | 想控制 `-HindsightDir` / `-DryRun` / `-KeepBackups`，或要事务式升级 |
+| **③ 让 DSH 帮你跑** | 在 DSH 会话里说「帮我装 `dsh plugin ...`」 | 不想碰命令行 |
+
+> ⚠️ **不能只把文件夹拷进 `node_modules`**：插件还必须登记在 profile 的 `package.json` 的
+> `dependencies` 里（`install.ps1` 第 656~667 行会自动写），只拷目录 DSH 不会加载。
+>
+> `install.ps1` 额外提供**备份 → 替换 → 健康检查 → 失败自动回滚**的事务式升级，
+> 升级已装版本时更稳。详见[安装到 DSH](#安装到-dsh)。
 
 > **DSH 用户就装方式 4**：那是完整集成包（面板 + 双引擎 + 安装脚本），
 > 和方式 3 的 MCP 版是**两个不同的包**——MCP 版只有记忆工具，没有面板、没有双引擎。
@@ -330,14 +346,37 @@ NebulaMemory（一个库）
 
 ### 4. 作为 DSH 插件（可视化面板）
 
-如果你用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以把它作为插件安装，获得完整的「记忆星云」可视化面板：
+如果你用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以把它作为插件安装，获得完整的「记忆星云」可视化面板。
+
+**三种装法任选一种，装的是同一个东西**（都带面板、都落到 `profiles/<profile>/node_modules/dsh-nebula-memory`）：
 
 ```sh
-dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory
+# ① 插件命令（推荐）：由 pnpm 安装并自动登记依赖
+dsh plugin --profile desktop add github:yb-zhai/agent-memory
 ```
 
-> 这是本插件的**推荐装法**。注意两点：
-> ① `--profile` 要填你实际在用的那个（桌面端一般是 `desktop`，Web 端是 `web`）；
+```powershell
+# ② 安装脚本：clone 后运行，带事务式升级（备份 → 替换 → 健康检查 → 失败自动回滚）
+git clone https://github.com/yb-zhai/agent-memory.git
+cd agent-memory
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+#   -Profile desktop              指定 profile（默认就是 desktop）
+#   -HindsightDir "E:\hindsight"  顺带把引擎 B 目录配好
+#   -DryRun                       只演练，不改任何文件
+```
+
+```powershell
+# ③ 让 DSH 帮你跑上面任意一条
+# 在 DSH 会话里说：
+#   帮我安装这个插件：dsh plugin --profile desktop add github:yb-zhai/agent-memory
+```
+
+> ⚠️ **不要只把文件夹拷进去**：插件要同时在 profile 的 `package.json` 的
+> `dependencies` 里登记 `dsh-nebula-memory`（`install.ps1` 第 656~667 行会自动做这件事），
+> 只拷目录 DSH 不会加载它。
+>
+> 另外两点：
+> ① `--profile` / `-Profile` 要填你实际在用的那个（桌面端一般是 `desktop`，Web 端是 `web`）；
 > ② DSH 内的 **Discover 搜索搜不到**本插件（未发布 npm，客户端索引只收 npm 包），但上面的命令直接用，不受影响。
 > 详见[安装到 DSH](#安装到-dsh)。
 
@@ -792,40 +831,52 @@ Hindsight 读取标准环境变量 `http_proxy` / `https_proxy` / `NO_PROXY`
 
 如果你在用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以安装这个插件，获得完整的「记忆星云」可视化面板。
 
-### 最省事的方式：一条命令
+### 三种装法，任选一种
+
+装的是**同一个东西**（都带面板 + 双引擎），落到同一个位置 `profiles/<profile>/node_modules/dsh-nebula-memory`：
+
+**① 插件命令（推荐）**
 
 ```sh
 # --profile 换成你实际在用的：桌面客户端一般是 desktop，Web 端是 web
 dsh plugin --profile desktop add github:yb-zhai/agent-memory
 ```
 
-装完在 DSH 的**插件**列表里启用，左侧栏就会出现「记忆星云」。
-
-> **`--profile` 填错会装到另一个 profile，在你这儿看不到。**
-> 不确定就看看 `~/.dsh/profiles/` 下有哪几个目录，或直接问 DSH 当前用的 profile 名。
-
-### 也可以让 DSH 帮你装
-
-**把下面这句发给你正在用的 DSH 会话：**
-
-> 帮我安装这个插件：`dsh plugin --profile desktop add github:yb-zhai/agent-memory`
-
-DSH 会执行命令、装好并告诉你结果。
-
-### 手动安装（如果你更想自己来）
+**② 安装脚本（想控制参数 / 要事务式升级）**
 
 ```powershell
-# 1. 下载仓库
 git clone https://github.com/yb-zhai/agent-memory.git
 cd agent-memory
-
-# 2. 运行安装脚本
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装器会**自动完成**：备份旧版本 → 替换代码 → 健康检查 → 失败自动回滚。**不丢记忆数据。**
+`install.ps1` 会**自动完成**：停旧服务 → 校验备份 → 替换代码 → 写 profile 清单 → 健康检查，
+**任何一步失败都回滚代码、配置、清单和记忆数据**。**不丢记忆数据。**
 
-> 三种装法效果相同，都装的是同一个插件。
+常用参数：
+
+| 参数 | 作用 |
+|---|---|
+| `-Profile desktop` | 指定 profile（默认 `desktop`） |
+| `-HindsightDir "E:\hindsight"` | 顺带把引擎 B 的目录写进配置 |
+| `-DataDir "<记忆存储目录>"` | 指定记忆数据位置 |
+| `-DryRun` | 只演练打印，**不改任何文件**，装前先看它要做什么 |
+| `-KeepBackups 5` | 保留几份备份（默认 5） |
+| `-HealthTimeoutSec 30` | 健康检查超时 |
+
+> 建议首次先跑 `-DryRun` 看一眼计划，再正式装。
+
+**③ 让 DSH 帮你跑**
+
+把下面这句发给你正在用的 DSH 会话：
+
+> 帮我安装这个插件：`dsh plugin --profile desktop add github:yb-zhai/agent-memory`
+
+> ⚠️ **不要只把文件夹拷进去**：插件还必须登记在 profile 的 `package.json` 的 `dependencies` 里
+> （`install.ps1` 会自动写，见第 656~667 行），只拷目录 DSH 不会加载。
+
+> **`--profile` 填错会装到另一个 profile，在你这儿看不到。**
+> 不确定就看看 `~/.dsh/profiles/` 下有哪几个目录，或直接问 DSH 当前用的 profile 名。
 
 装完后，在 DSH 左侧栏「更多」里打开「记忆星云」即可看到面板。
 
