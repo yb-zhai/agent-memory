@@ -7,10 +7,6 @@
 [![license](https://img.shields.io/badge/license-MIT-green)](#许可)
 [![zero-dependency](https://img.shields.io/badge/dependencies-0-blue)](#)
 
-安装与完整文档：https://github.com/yb-zhai/agent-memory
-
-许可：代码 MIT；素材随项目 MIT（均为自产）；**二创在公开渠道须署名 + 注明改动 + 保留仓库链接**（同上链接）。
-
 > **🚀 小白想直接用？看 [快速上手（保姆级教程）](docs/快速上手.md)** —— 不写代码，跟着做就能用上。
 >
 > **🖥 你在用 DeepSeek Harness（DSH）？一条命令装：`dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory`**（桌面端一般填 `desktop`，见 [安装到 DSH](#安装到-dsh)）。
@@ -1111,38 +1107,12 @@ Hindsight 兼容性检查 · http://127.0.0.1:8888
 
 ## 许可
 
-安装与完整文档：https://github.com/yb-zhai/agent-memory
+- 代码：MIT，见 [LICENSE](LICENSE)，`Copyright (c) 2026 yb-zhai`
+- 素材（`docs/` 下的图片 / 动图 / 视频、`assets/icon.*`）：随项目 MIT，均为自产
+- **二次创作（二创）约定**：基于本项目的衍生 / 改版 / 换皮作品，在 **GitHub 仓库、产品官网等公开渠道**上须附上原作者 GitHub 地址：<https://github.com/yb-zhai/agent-memory>，并标注明「基于 yb-zhai/agent-memory 修改」，简述改动
+- **第三方**：本项目零运行时依赖；可选的 [Hindsight](https://github.com/vectorize-io/hindsight) 后端由使用者自行安装，遵循其自身的 MIT 许可（不随本仓库分发）
 
-许可：代码 MIT；素材随项目 MIT（均为自产）；**二创在公开渠道须署名 + 注明改动 + 保留仓库链接**（同上链接）。
-
----
-
-[MIT License](LICENSE) © 2026 yb-zhai
-
-本项目**零运行时依赖**，代码、文档、图表素材全部自研，均以标准 MIT 授权，
-可自由使用、修改、分发、商用。
-
-唯一的例外是**可选的** [Hindsight](https://github.com/vectorize-io/hindsight) 后端：
-它由使用者自行安装，不随本仓库分发，许可归上游（标准 MIT）。
-
-> **二次创作与分发**：保留 `LICENSE` 与版权声明、注明作者与出处即可。
-> 第三方声明、素材来源和详细须知见 [NOTICE.md](NOTICE.md)。
-
-### 二创约定（社区期待，非许可条款）
-
-本项目的 `LICENSE` 是**标准 MIT**：只要求保留版权声明，不强制署名。
-但如果你基于它做二次创作并公开，**希望你能做到下面三条** —— 这不是法律义务，是社区礼节：
-
-1. 写明原作者：`yb-zhai`
-2. 写明原仓库：`https://github.com/yb-zhai/agent-memory`
-3. 改过的注明「基于 yb-zhai/agent-memory 修改」，并简述改动
-
-```markdown
-安装与完整文档：https://github.com/yb-zhai/agent-memory
-许可：代码 MIT；素材随项目 MIT；二创在公开渠道须署名 + 注明改动 + 保留仓库链接（同上链接）。
-```
-
-> 只写名字不写链接，等于上游收不到这次传播 —— 两样一起写才有效。
+> 详细的第三方声明、素材来源与二创模板见 [NOTICE.md](NOTICE.md)。
 
 ---
 
