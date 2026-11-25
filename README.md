@@ -878,6 +878,49 @@ docker run -it --name hindsight --restart unless-stopped -p 8888:8888 \
 | LLM | — | ❌ 需你自己配 key 或本地模型 |
 | 模型调优参数 | — | ❌ 默认值可用，极致调优需自己调（见[上文配置方案](#为什么语义增强hindsight-叠加层没直接提供)） |
 
+### 上游改接口了？跑一下兼容性检查
+
+引擎 B 依赖的是 [Hindsight](https://github.com/vectorize-io/hindsight) 的 HTTP 接口。
+上游发版很快（1.0.0 → 1.3.0 只用了 24 天），万一它删了端点或改了字段名，
+表现会是「面板看着正常，但语义增强一直没数据」——很难第一时间联想到接口变了。
+
+仓库里带了一个检查脚本，把这种漂移提前暴露出来：
+
+```bash
+npm run check:hindsight
+```
+
+输出长这样（对 1.2.0 实测）：
+
+```
+Hindsight 兼容性检查 · http://127.0.0.1:8888
+  ✓ 端点存在 /v1/default/banks/{bank_id}/memories/dry-run-extract  POST
+  ✓ banks 列表字段  bank_id + fact_count（共 N 个 bank）
+  ✓ stats 字段  total_nodes + total_links
+  ✓ graph 结构  nodes + edges
+  ...
+全部通过（14 项）。
+```
+
+它做两件事：
+
+1. **静态契约** —— 拉运行中服务的 `/openapi.json`，核对 7 个依赖端点（含 1 个可选）的 method 是否还在；
+2. **在线冒烟** —— 实调只读端点，确认 `bank_id` / `fact_count` / `total_nodes` /
+   `total_links` / `nodes` / `edges` 这些**实际会读的字段**还在。
+
+常用参数：
+
+| 参数 | 作用 |
+|---|---|
+| `--url <地址>` | 检查非默认地址的服务（默认 `http://127.0.0.1:8888`，也读 `HINDSIGHT_URL`） |
+| `--probe-llm` | 连 LLM 一起验（会真调一次 `dry-run-extract`，约 3k token） |
+| `--strict` | 有警告也算失败，适合接 CI |
+| `--json` | 机器可读输出，配 `npm run check:hindsight:json` |
+
+**退出码**：`0` 全部通过 / `1` 有失败 / `2` 服务不可达。可以直接接进 CI 或定时任务。
+
+> 默认**不消耗 LLM 额度**——`dry-run-extract` 那条会跳过，只做静态契约和只读冒烟。
+
 ---
 
 ## 数据与隐私
