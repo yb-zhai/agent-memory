@@ -145,7 +145,7 @@ npm run release:major           # 不兼容变更发版
 |---|---|
 | 工作区干净 | `git status` 无意外改动 |
 | 内容正确 | 逐行看过 `git diff`，确认只有预期改动 |
-| 行尾与 BOM | 与文件原有格式一致（本仓库多为 LF 无 BOM；`install.ps1` 为 UTF-8 BOM + LF） |
+| 行尾与 BOM | 与文件原有格式一致（本仓库多为 LF 无 BOM；`install.ps1` 为 UTF-8 BOM + LF）。**改完看 `git diff --numstat`：若显示整文件重写（如 `1085 1085`）而不是 1~2 行，说明行尾被动了** |
 | 文档引用 | 改了标题就复查锚点；`npm run check:hindsight` 可验接口契约 |
 | 代码可跑 | `node --check` 过语法，**并在浏览器/实际入口里真跑一遍** |
 | 版本三处一致 | 源码 `package.json` == 安装目录 `package.json` == 运行中 `/healthz` 返回的 `version`；tag 名应与 `package.json` 一致 |
@@ -175,6 +175,41 @@ git ls-remote origin 'refs/tags/v2.0.0^{}'
 
 > 附注 tag 对象 ID 与提交 ID 不同是**正常现象**，不代表 tag 有问题。
 
+#### 别手动改行尾：repo 存 LF，工作区因 autocrlf 是 CRLF
+
+这个仓库设了 `core.autocrlf=true`，所以**同一份文件有两种正确状态**：
+
+| 位置 | 行尾 | 说明 |
+|---|---|---|
+| 仓库里（`git show HEAD:README.md`） | **LF** | 这是仓库的存储格式，符合「LF 无 BOM」的约定 |
+| 工作区（`README.md` 实际文件） | **CRLF** | git 检出时自动转的，不是你改坏的 |
+
+**踩过的坑**：改完一行后，用 PowerShell 或 Python 把工作区文件「统一成 LF」，
+git 反而判定**全部行都变了**，`git diff --numstat` 从 `1 1` 变成 `1085 1085`，
+一个字的改动看起来像重写了整个文件。
+
+原因是：手动改写绕过了 git 的自动转换，git 拿工作区的 LF 和索引里（转换后）的内容对比，
+发现完全不同；而正常流程是「工作区 CRLF → 提交时转 LF → 与索引一致」。
+
+**正确做法**：
+
+```bash
+# ❌ 错：手动改行尾，会让 diff 变成整文件重写
+#     （PowerShell）$t = $t -replace "`r`n", "`n"; [IO.File]::WriteAllText($p, $t, $enc)
+
+# ✅ 对：只改内容，行尾交给 git
+#     用编辑工具做最小替换，改完确认 diff 只有预期那几行
+git diff --numstat <file>     # 应为 1 1 这种，不是 1085 1085
+```
+
+如果已经改坏了，用 `git checkout -- <file>` 撤销，再重做一次最小替换即可。
+**不要**用 `core.autocrlf=false` 去「修正」——那会引入更多无关差异。
+
+> 判断依据看 numstat，别看文件的实际行尾：工作区是 CRLF 属于正常，
+> 该验的是「git 认为我改了几行」。
+
+#### 真实教训（推送前自检的由来）
+
 > 三条真实教训：
 > 1. 修 CHANGELOG 时行尾写成了混合 LF/CRLF（仓库原本纯 LF），diff 看不出，肉眼看也不明显；
 > 2. 面板改动用了未定义的变量，`node --check` 能过（语法合法），
@@ -184,6 +219,10 @@ git ls-remote origin 'refs/tags/v2.0.0^{}'
 >
 > 所以「语法通过」不等于「能跑」，「两个 ID 不相等」也不等于「指向不对」——
 > 都要用正确的判据再验一次。
+>
+> 后来改 README 一行字时又踩了行尾：手动把工作区统一成 LF，diff 变成整文件重写
+> （`1085 1085`）。**同一个坑踩了两次，原因不同但判据相同**——
+> 看 `git diff --numstat` 的行数，而不是盯着文件的实际行尾。详见上一节。
 
 ### 预发布版本
 
