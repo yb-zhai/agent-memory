@@ -246,7 +246,7 @@ node server.js
 
 包地址：[nebula-memory-mcp on npm](https://www.npmjs.com/package/nebula-memory-mcp) · 零依赖。
 
-写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——它们都能直接读写你的记忆。**MCP 入口当前只接本地四臂**（零依赖、零花费）；需要语义增强请用 DSH 插件面板，见[下文](#双引擎架构本地四臂-与-hindsight)。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
+写一个 MCP Server，就同时接入了 **Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline** 等所有支持 MCP 的主流 AI 客户端——**DSH 也能作为 MCP 客户端挂载它**——它们都能直接读写你的记忆。**MCP 入口当前只接本地四臂**（零依赖、零花费）；需要语义增强请用 DSH 插件面板，见[下文](#双引擎架构本地四臂-与-hindsight)。详见 [docs/MCP.md](docs/MCP.md) 或 [小白版快速上手](docs/快速上手.md)。
 
 > 想用源码方式（而非 npm 包）：`command` 填 `node`，`args` 填 `["路径/mcp-server.mjs"]` 即可。
 
@@ -508,19 +508,27 @@ hindsight-api --host 127.0.0.1 --port 8888
 
 ---
 
-## 版本说明（三条独立版本线，别混淆）
+## 版本说明（四条独立版本线，别混淆）
 
-本项目对外有三条版本线，**各自独立是设计如此**，不要以为它们应该相等：
+本项目对外有**四条版本线**，**各自独立是设计如此**，不要以为它们应该相等：
 
-| 版本线 | 当前 | 代表什么 | 谁在读 |
-|---|---|---|---|
-| **DSH 插件** `dsh-nebula-memory` | 1.3.13 | 完整产品：面板 + 本地引擎 + 可选 Hindsight，装进 DSH 用 | DSH 插件管理器、`install.ps1` |
-| **npm 包** `nebula-memory-mcp` | 1.2.1 | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor 等接入 | npm / npx 用户 |
-| **MCP Registry 条目** | 1.5.x | Registry 上的发布版本，指向某一版 npm 包 | MCP 客户端 |
+| # | 版本线 | 当前 | 代表什么 | 谁在读 |
+|---|---|---|---|---|
+| 1 | **DSH 插件** `dsh-nebula-memory` | **2.0.0** | 完整产品：面板 + 本地四臂引擎 + 可选 Hindsight 双引擎，装进 DSH 用 | DSH 插件管理器、`install.ps1`、`/healthz` |
+| 2 | **npm 包** `nebula-memory-mcp` | **1.2.1** | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor / ChatGPT 等 MCP 客户端接入；**DSH 也能作为 MCP 客户端挂载它** | npm / npx 用户、MCP 客户端 |
+| 3 | **MCP Registry 条目** `io.github.yb-zhai/nebula-memory` | **1.5.0** | Registry 上的发布记录，指向某一版 npm 包 | MCP 客户端发现 |
+| 4 | **MCP 服务自报版本**（`server.json` 里的 `version` / `mcp-server.mjs` 的 `version`） | **1.2.0** | MCP `initialize` 握手时返回给客户端的版本号 | 与你直连的 MCP 客户端 |
 
-**为什么不同**：三个包的内容与用途根本不同——DSH 插件带面板和 HTTP 服务，npm 包只有一个 MCP 入口文件，Registry 条目是发布记录。强行统一版本号只会让"同名不同物"更混乱。
+**为什么不同**：四者内容与用途根本不同——DSH 插件带面板和 HTTP 服务；npm 包只有一个 MCP 入口文件；Registry 条目是发布记录；自报版本是运行时握手字段。强行统一版本号只会让「同名不同物」更混乱。
 
-**真正必须一致的是同一包内部**：例如 DSH 插件的 `package.json` 版本与 `server.js` 的 `VERSION` 必须相等，否则 `install.ps1` 的健康检查会判定升级失败并回滚。这是安装机制的要求，与上面三条版本线无关。
+> ⚠️ 第 2 与第 4 条目前**不一致**（npm 1.2.1 vs 自报 1.2.0）。这不影响功能——客户端不会因版本号不匹配拒绝连接——但如果你按版本号排查问题，要以 npm 包为准。
+
+**能接 Claude / Cursor / ChatGPT 等 MCP 客户端的是哪一条**：第 2 条（MCP 版）。
+**DSH 也能作为 MCP 客户端挂载它**——所以 DSH 用户有两种选择：
+装第 1 条集成包（面板 + 双引擎），或挂第 2 条 MCP 版（单引擎工具）。
+但 MCP 版**只有本地四臂，不含 Hindsight 双引擎、不含可视化面板**。
+
+**真正必须一致的是同一包内部**：例如 DSH 插件的 `package.json` 版本与 `server.js` 的 `VERSION` 必须相等，否则 `install.ps1` 的健康检查会判定升级失败并回滚。这是安装机制的要求，与上面四条版本线无关。
 
 ---
 
@@ -765,7 +773,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 ## DSH 集成包
 
-「DSH 集成包」就是本插件装进 DeepSeek Harness 之后的那一份，包含两部分：
+「DSH 集成包」就是本插件装进 DeepSeek Harness 之后的那一份。里面有这些：
 
 [![66 秒安装教程视频 · 点击播放](docs/tutorial-thumb.png)](docs/tutorial-install.mp4)
 
@@ -773,11 +781,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 | 组成 | 内容 |
 |---|---|
-| **面板服务** | 记忆星云可视化（3D 星图、召回轨迹、数据链）、HTTP API、SSE 推流 |
-| **双引擎对接层** | 引擎 A（本地四臂）+ 引擎 B（Hindsight）并发召回、RRF 融合、三态自检与自动降级 |
+| **面板服务** `server.js` + `panel.html` | 记忆星云可视化（3D 星图、召回轨迹、数据链）、HTTP API、SSE 推流、端口 `8898` |
+| **本地引擎** `lib/` + `memory/` | 四臂召回（词法 / 激活 / 图扩散 / 画像）、JSONL 存储、压缩与维护，零依赖 |
+| **双引擎对接层** | 引擎 A + 引擎 B（Hindsight）并发召回、RRF 融合、三态自检与自动降级 |
+| **DSH 接入** `index.js` / `client.js` / `cordis.patch.yml` | 让面板出现在 DSH 左侧栏，走 DSH 插件协议 |
+| **安装与卸载** `install.ps1` / `install.cmd` / `uninstall.*` | 备份 → 替换 → 健康检查 → 失败自动回滚 |
+| **配置样例** `config.example.json` / `.env.example` | 复制改一改即可用 |
+| **运维脚本** `scripts/` | 性能基准、兼容性检查 `check:hindsight`、自检 |
 
-**引擎 B 的服务端不在包内**——这是[前面说过的分法](#为什么不直接提供而是建议自己搭建)：
+包内**不含** MCP 入口（`mcp-server.mjs` 属于第 2 条版本线的 npm 包），
+也**不含**引擎 B 的服务端（Hindsight、PostgreSQL、模型）——这是[前面说过的分法](#为什么不直接提供而是建议自己搭建)：
 装包就能用引擎 A，引擎 B 由你按自己的机器自己装。插件负责对接、探测和降级。
+
+### 四条版本线里，你该装哪一条？
+
+| 你的情况 | 装哪条 | 得到什么 |
+|---|---|---|
+| 用 **DSH**，想要面板 + 双引擎 | **第 1 条** DSH 插件（本节讲的集成包） | 完整产品：星图面板 + 四臂 + 可选 Hindsight |
+| 用 **DSH**，只想让模型多几个记忆工具 | **第 2 条** npm 包（当 MCP 客户端挂载） | 四臂召回工具，**无面板、无双引擎** |
+| 用 **Claude / Cursor / ChatGPT** 等 MCP 客户端 | **第 2 条** npm 包 `nebula-memory-mcp` | 同上，且不依赖 DSH |
+
+> 一句话：**面板和双引擎只在集成包里；MCP 版是单引擎的工具箱，谁都能接。**
+> MCP 版能接 Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline 等所有支持 MCP 的客户端，
+> DSH 也能作为 MCP 客户端挂载它
+> （见[接入方式 3](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等)），但只走本地四臂。
+> 版本号对应关系见[版本说明](#版本说明四条独立版本线别混淆)。
 
 ### 引擎 B 选型：三个可配的部件
 
