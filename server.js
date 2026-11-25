@@ -861,6 +861,18 @@ export class MemoryNebulaServer {
     // 端点 feature flag 为 false（404），不能依赖它。
     if (pathname === '/hindsight-probe') {
       const base = String(this.cfg.hindsightUrl || '').replace(/\/+$/, '')
+      // 可选：本次探测用的临时 key。只作用于这一次请求，不写 cfg、不落盘。
+      // 用途是让面板的「检测」成为纯只读操作 —— 用户想测一下手里的 key 能不能用，
+      // 不该顺带把明文存到磁盘。缺省时回落到已保存的 cfg.hindsightKey。
+      let probeKey = this.cfg.hindsightKey
+      if (req.method === 'POST') {
+        let probeBody = ''
+        for await (const chunk of req) probeBody += chunk
+        try {
+          const tmpKey = (JSON.parse(probeBody || '{}').hindsightKey || '').trim()
+          if (tmpKey) probeKey = tmpKey
+        } catch { /* body 非法就当没传，继续用已保存的 key */ }
+      }
       const out = {
         url: base,
         ok: false,
@@ -879,7 +891,7 @@ export class MemoryNebulaServer {
         const ctl = new AbortController()
         const timer = setTimeout(() => ctl.abort(), ms)
         try {
-          const r = await fetch(`${base}${pathname2}`, { signal: ctl.signal, headers: { accept: 'application/json', ...(this.cfg.hindsightKey ? { authorization: `Bearer ${this.cfg.hindsightKey}` } : {}) } })
+          const r = await fetch(`${base}${pathname2}`, { signal: ctl.signal, headers: { accept: 'application/json', ...(probeKey ? { authorization: `Bearer ${probeKey}` } : {}) } })
           if (!r.ok) throw new Error(`HTTP ${r.status}`)
           return await r.json()
         } finally { clearTimeout(timer) }
@@ -949,7 +961,7 @@ export class MemoryNebulaServer {
           const r = await fetch(`${base}/v1/default/banks/${encodeURIComponent(chosenBank)}/memories/dry-run-extract`, {
             method: 'POST',
             signal: ctl.signal,
-            headers: { 'content-type': 'application/json', accept: 'application/json', ...(this.cfg.hindsightKey ? { authorization: `Bearer ${this.cfg.hindsightKey}` } : {}) },
+            headers: { 'content-type': 'application/json', accept: 'application/json', ...(probeKey ? { authorization: `Bearer ${probeKey}` } : {}) },
             body: JSON.stringify({ content: 'connectivity probe', context: 'memory nebula setup wizard' }),
           })
           if (!r.ok) {

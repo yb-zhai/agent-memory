@@ -99,14 +99,17 @@
         <div id="conn-body" style="border-top:1px dashed rgba(120,180,220,.18);margin-top:10px;padding-top:10px">
           <div class="row" style="font-size:11px;color:#38e1ff;font-weight:600">Hindsight 连接</div>
           <div class="row"><label style="min-width:44px">地址</label><input id="cn-url" type="text" style="width:170px" placeholder="http://127.0.0.1:8888" /></div>
-          <div class="row"><label style="min-width:44px">API Key</label><input id="cn-key" type="password" style="width:170px" placeholder="留空=不使用鉴权" /></div>
+          <div class="row"><label style="min-width:44px">API Key</label><input id="cn-key" type="password" style="width:170px" placeholder="仅用于检测，测完即清除" /></div>
           <button class="save" id="cn-save">保存并测试连接</button>
           <button id="cn-probe" style="margin-top:6px;width:100%;background:rgba(56,225,255,.10);border:1px solid rgba(56,225,255,.45);
             color:#38e1ff;border-radius:8px;padding:6px 0;font-size:12px;cursor:pointer">检测 Hindsight（三步）</button>
           <div id="cn-probe-out" style="display:none;margin-top:8px;font-size:11px;line-height:1.7"></div>
           <button id="cn-clear" style="margin-top:6px;width:100%;background:transparent;border:1px solid rgba(251,113,133,.4);
             color:#fb7185;border-radius:8px;padding:6px 0;font-size:12px;cursor:pointer">清除已保存的 Key</button>
-          <div class="hint" id="cn-hint">保存后会加密存在本机（仅当前 Windows 用户可解密），重启自动填充。</div>
+          <div class="hint" id="cn-hint">这把 key 只用于访问<b>本机 Hindsight 服务</b>（发往 127.0.0.1:8888 的 Bearer 头），
+            <b>不参与任何模型调用、不产生费用</b>。跑模型用的是 Hindsight 服务侧自己的
+            <code>HINDSIGHT_API_LLM_API_KEY</code>，与这里无关。
+            点「检测」只做只读探测，<b>不会保存 key、也不写入磁盘</b>；需要长期保存请点「保存并测试连接」（加密存本机，仅当前 Windows 用户可解密）。</div>
         </div>
       </div>
     </span>
@@ -3012,13 +3015,16 @@ async function loadConn() {
     if (!r.ok) return
     const j = await r.json()
     if ($('cn-url')) $('cn-url').value = j.hindsightUrl || ''
-    if ($('cn-key')) $('cn-key').placeholder = j.hasKey ? `已保存 ${j.keyHint}（留空不修改）` : '留空=不使用鉴权'
+    if ($('cn-key')) $('cn-key').placeholder = j.hasKey ? `已保存 ${j.keyHint}（留空不修改）` : '仅用于检测，测完即清除'
     const hint = $('cn-hint')
     if (hint) {
-      if (!j.hasKey) hint.textContent = '尚未配置 key。保存后会加密存在本机（仅当前 Windows 用户可解密），重启自动填充。'
-      else if (j.source === 'env') hint.textContent = '当前 key 来自环境变量 MEMORY_NEBULA_HINDSIGHT_KEY（优先级最高）。'
-      else if (j.source === 'vault') hint.textContent = `已加密保存在本机（${j.keyHint}），重启后自动填充。`
-      else hint.textContent = 'key 仅本次运行有效（DPAPI 不可用），重启后需重新输入。'
+      // 这把 key 的作用容易被误解成「模型调用的 key」，所以每条状态都带上完整说明。
+      // 注意：本函数每次都会覆盖静态文案，改文案请改这里。
+      const base = '此 key 只用于访问本机 Hindsight 服务，不参与模型调用、不产生费用；跑模型用的是服务侧的 HINDSIGHT_API_LLM_API_KEY。点「检测」不会保存 key。'
+      if (!j.hasKey) hint.textContent = '尚未配置 key。' + base + '需要长期保存请点「保存并测试连接」（加密存本机，仅当前 Windows 用户可解密）。'
+      else if (j.source === 'env') hint.textContent = '当前 key 来自环境变量 MEMORY_NEBULA_HINDSIGHT_KEY（优先级最高）。' + base
+      else if (j.source === 'vault') hint.textContent = `已加密保存在本机（${j.keyHint}），重启后自动填充。` + base
+      else hint.textContent = 'key 仅本次运行有效（DPAPI 不可用），重启后需重新输入。' + base
     }
   } catch {}
 }
@@ -3098,12 +3104,16 @@ function renderProbe(out) {
   } else if (out.steps.port.ok && out.steps.api.ok && !out.steps.llm.ok) {
     // 最需要显眼警告的一种：服务在跑，但记忆写不进去
     html += `<div style="color:#fbbf24;margin-top:6px;padding:6px 8px;background:rgba(251,191,36,.10);border-radius:6px;line-height:1.6">
-      ⚠ Hindsight 服务是通的，但 <b>LLM 不可用</b>。<br>这种状态下记忆<b>写得进去但抽不出事实</b>，
-      等于没有语义增强。请检查 Hindsight 那边的 <code>HINDSIGHT_API_LLM_PROVIDER</code> /
-      <code>MODEL</code> / <code>API_KEY</code> 配置后重启服务。<br>
-      与此同时本插件已自动回退到<b>本地四臂</b>，所有功能照常可用。</div>`;
+      ⚠ Hindsight 服务是通的，但 <b>LLM 不可用</b>。<br>
+      这是 <b>Hindsight 服务侧</b>的配置问题，<b>不是</b>上面那把 key 的问题——那把 key 只管本机访问。
+      请在 Hindsight 的启动环境里设置 <code>HINDSIGHT_API_LLM_PROVIDER</code> /
+      <code>_MODEL</code> / <code>_API_KEY</code>（都不设时默认 <code>openai</code> / <code>gpt-4o-mini</code>）后重启服务。<br>
+      这种状态下记忆<b>写得进去但抽不出事实</b>，本插件已自动回退到<b>本地四臂</b>，所有功能照常可用。</div>`;
   } else {
     html += `<div style="color:#64748b;margin-top:6px">已回退到本地四臂，所有功能照常可用。</div>`;
+  }
+  if (out._inputCleared) {
+    html += `<div style="color:#64748b;margin-top:6px">本次输入的 key 仅用于检测，已从输入框清除，未写入磁盘。如需长期保存请点「保存并测试连接」。</div>`;
   }
   box.innerHTML = html;
 }
@@ -3114,21 +3124,31 @@ async function runProbe() {
   if (btn) { btn.disabled = true; btn.textContent = '检测中…（约 2 秒）' }
   if (box) { box.style.display = 'block'; box.innerHTML = '<div style="color:#64748b">正在探测：端口 → API → LLM …</div>' }
   try {
-    // 先保存当前输入的地址，保证探测用的是用户刚填的那一个
+    // 检测是只读操作，绝不保存：key 只随本次请求发出，结束后立刻从输入框清除，
+    // 不写入磁盘、也不改动已保存的那把。想长期保存请点「保存并测试连接」。
+    // 地址不敏感且探测必须用到，仍然即时保存。
     const url = ($('cn-url')?.value || '').trim();
     const keyVal = ($('cn-key')?.value || '').trim();
     const saveBody = {};
     if (url) saveBody.hindsightUrl = url;
-    if (keyVal) saveBody.hindsightKey = keyVal;
     if (Object.keys(saveBody).length) {
       await fetch('/connection-settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(saveBody) });
-      if ($('cn-key')) $('cn-key').value = '';
     }
-    const r = await fetch('/hindsight-probe');
+    const probeBody = {};
+    if (keyVal) probeBody.hindsightKey = keyVal;
+    const r = await fetch('/hindsight-probe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(probeBody),
+    });
+    // 无论探测成败都清空输入框，避免明文停留在页面上
+    if ($('cn-key')) $('cn-key').value = '';
     const j = await r.json();
+    j._inputCleared = Boolean(keyVal);
     renderProbe(j);
     loadConn(); refreshTopbar();
   } catch (e) {
+    if ($('cn-key')) $('cn-key').value = '';
     if (box) box.innerHTML = _probeRow('✗', '#fb7185', '检测失败：' + e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '检测 Hindsight（三步）' }
