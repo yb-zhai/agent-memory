@@ -4,12 +4,12 @@
 
 一个自包含的记忆引擎：**本地 JSONL 四臂召回**（词法 / 激活 / 图扩散 / 画像）+ **可交互的记忆星云可视化面板**，可选叠加 **Hindsight HTTP API** 做语义增强。核心引擎永远可独立运行——**不联网、不烧钱、不依赖任何数据库或 LLM**。
 
-[![license](https://img.shields.io/badge/license-MIT-green)](#许可)
+[![license](https://img.shields.io/badge/license-MIT%20%2B%20attribution-orange)](#许可)
 [![zero-dependency](https://img.shields.io/badge/dependencies-0-blue)](#)
 
 安装与完整文档：https://github.com/yb-zhai/agent-memory
 
-许可：代码 MIT；素材随项目 MIT（均为自产）；**二创须保留原作者署名与仓库链接、并注明是否修改过**（同上链接）。
+许可：**MIT + 附加署名条款**（非标准 MIT）；**二创须保留原作者署名与仓库链接、并注明是否修改过**（同上链接）。
 
 > **🚀 小白想直接用？看 [快速上手（保姆级教程）](docs/快速上手.md)** —— 不写代码，跟着做就能用上。
 >
@@ -1113,16 +1113,21 @@ Hindsight 兼容性检查 · http://127.0.0.1:8888
 
 安装与完整文档：https://github.com/yb-zhai/agent-memory
 
-许可：代码 MIT；素材随项目 MIT（均为自产）；**二创须保留原作者署名与仓库链接、并注明是否修改过**（同上链接）。
+许可：**MIT + 附加署名条款**（非标准 MIT）；**二创须保留原作者署名与仓库链接、并注明是否修改过**（同上链接）。
 
 ---
 
-[MIT License](LICENSE) © 2026 yb-zhai
+[MIT + 附加署名条款](LICENSE) © 2026 yb-zhai
 
-本项目**零运行时依赖**，代码、文档、图表素材全部自研，均以 MIT 授权，可自由使用、修改、分发、商用。
+本项目**零运行时依赖**，代码、文档、图表素材全部自研。
+
+本许可基于 MIT，**附加了两条义务**：公开发布衍生版本时须（1）保留原作者署名 `yb-zhai`
+与仓库链接 `https://github.com/yb-zhai/agent-memory`，（2）注明是否修改过。
+不限制商用、不要求开源衍生代码、不收任何费用。**因此它不是标准 MIT**，
+若你的场景必须使用标准 OSI 许可，请注意这一点。
 
 唯一的例外是**可选的** [Hindsight](https://github.com/vectorize-io/hindsight) 后端：
-它由使用者自行安装，不随本仓库分发，许可归上游（MIT）。
+它由使用者自行安装，不随本仓库分发，许可归上游（标准 MIT）。
 
 > **二次创作与分发**：保留 `LICENSE` 与版权声明、注明作者与出处即可。
 > 第三方声明、素材来源和详细须知见 [NOTICE.md](NOTICE.md)。
