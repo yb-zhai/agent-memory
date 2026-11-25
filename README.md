@@ -7,6 +7,10 @@
 [![license](https://img.shields.io/badge/license-MIT-green)](#许可)
 [![zero-dependency](https://img.shields.io/badge/dependencies-0-blue)](#)
 
+安装与完整文档：https://github.com/yb-zhai/agent-memory
+
+许可：代码 MIT；素材随项目 MIT（均为自产）；二创在公开渠道须署名（同上链接）。
+
 > **🚀 小白想直接用？看 [快速上手（保姆级教程）](docs/快速上手.md)** —— 不写代码，跟着做就能用上。
 >
 > **🖥 你在用 DeepSeek Harness（DSH）？一条命令装：`dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory`**（桌面端一般填 `desktop`，见 [安装到 DSH](#安装到-dsh)）。
@@ -1106,6 +1110,12 @@ Hindsight 兼容性检查 · http://127.0.0.1:8888
 ---
 
 ## 许可
+
+安装与完整文档：https://github.com/yb-zhai/agent-memory
+
+许可：代码 MIT；素材随项目 MIT（均为自产）；二创在公开渠道须署名（同上链接）。
+
+---
 
 [MIT License](LICENSE) © 2026 yb-zhai
 
