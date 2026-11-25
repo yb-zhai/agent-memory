@@ -767,9 +767,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 「DSH 集成包」就是本插件装进 DeepSeek Harness 之后的那一份，包含两部分：
 
-<video src="https://github.com/yb-zhai/agent-memory/raw/main/docs/tutorial-install.mp4" controls preload="metadata" width="240"></video>[![66 秒安装教程视频 · 点击播放](docs/cover-douyin.png)](docs/tutorial-install.mp4)
+[![66 秒安装教程视频 · 点击播放](docs/tutorial-thumb.png)](docs/tutorial-install.mp4)
 
-*📹 66 秒实操视频 —— 从装进 DSH 到接入 Hindsight、验证连通性，一路 demo 下来（竖屏 1080×1920）。点封面或[直接打开视频](docs/tutorial-install.mp4)。*
+*📹 从装进 DSH 到接入 Hindsight、验证连通性，一路 demo 下来（竖屏 1080×1920）。点缩略图或[直接打开视频](docs/tutorial-install.mp4)。*
 
 | 组成 | 内容 |
 |---|---|
