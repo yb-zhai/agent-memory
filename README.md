@@ -9,7 +9,7 @@
 
 > **🚀 小白想直接用？看 [快速上手（保姆级教程）](docs/快速上手.md)** —— 不写代码，跟着做就能用上。
 >
-> **🖥 你在用 DeepSeek Harness（DSH）？直接把本仓库地址发给 DSH，让它帮你装**（见 [安装到 DSH](#安装到-dsh)）。
+> **🖥 你在用 DeepSeek Harness（DSH）？一条命令装：`dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory`**（桌面端一般填 `desktop`，见 [安装到 DSH](#安装到-dsh)）。
 
 ![Nebula Memory 记忆星云面板 — 实时动画](docs/demo.gif)
 
@@ -43,7 +43,7 @@
 
 | 你的情况 | 用哪种 | 一条命令 / 入口 | 有面板？ | 有双引擎？ |
 |---|---|---|---|---|
-| 用 **DSH**，想要完整面板 | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | 把仓库地址发给 DSH | ✅ | ✅（可选） |
+| 用 **DSH**，想要完整面板 | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | `dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory` | ✅ | ✅（可选） |
 | 用 **DSH**，只想加几个记忆工具 | **方式 3** MCP Server → [跳到该节](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等) | 挂 `nebula-memory-mcp` | ❌ | ❌ |
 | 用 **Claude / Cursor / ChatGPT** 等 | **方式 3** MCP Server | `npx nebula-memory-mcp` | ❌ | ❌ |
 | 写 **Node.js** 代码要嵌进去 | **方式 1** 作为库 → [跳到该节](#1-作为库nodejs任何模型可用) | `import { NebulaMemory }` | ❌ | ❌ |
@@ -325,7 +325,16 @@ NebulaMemory（一个库）
 
 ### 4. 作为 DSH 插件（可视化面板）
 
-如果你用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以把它作为插件安装，获得完整的「记忆星云」可视化面板。见 [安装到 DSH](#安装到-dsh)。
+如果你用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以把它作为插件安装，获得完整的「记忆星云」可视化面板：
+
+```sh
+dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory
+```
+
+> 这是本插件的**推荐装法**。注意两点：
+> ① `--profile` 要填你实际在用的那个（桌面端一般是 `desktop`，Web 端是 `web`）；
+> ② DSH 内的 **Discover 搜索搜不到**本插件（未发布 npm，客户端索引只收 npm 包），但上面的命令直接用，不受影响。
+> 详见[安装到 DSH](#安装到-dsh)。
 
 ---
 
@@ -778,13 +787,25 @@ Hindsight 读取标准环境变量 `http_proxy` / `https_proxy` / `NO_PROXY`
 
 如果你在用 [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek)（DSH），可以安装这个插件，获得完整的「记忆星云」可视化面板。
 
-### 最省事的方式：让 DSH 帮你装
+### 最省事的方式：一条命令
 
-**直接把本仓库地址发给 DSH，对它说：**
+```sh
+# --profile 换成你实际在用的：桌面客户端一般是 desktop，Web 端是 web
+dsh plugin --profile desktop add github:yb-zhai/agent-memory
+```
 
-> 帮我安装这个插件：https://github.com/yb-zhai/agent-memory
+装完在 DSH 的**插件**列表里启用，左侧栏就会出现「记忆星云」。
 
-DSH 会自己 clone 仓库、运行 `install.ps1`、装好并告诉你结果。
+> **`--profile` 填错会装到另一个 profile，在你这儿看不到。**
+> 不确定就看看 `~/.dsh/profiles/` 下有哪几个目录，或直接问 DSH 当前用的 profile 名。
+
+### 也可以让 DSH 帮你装
+
+**把下面这句发给你正在用的 DSH 会话：**
+
+> 帮我安装这个插件：`dsh plugin --profile desktop add github:yb-zhai/agent-memory`
+
+DSH 会执行命令、装好并告诉你结果。
 
 ### 手动安装（如果你更想自己来）
 
@@ -799,9 +820,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 安装器会**自动完成**：备份旧版本 → 替换代码 → 健康检查 → 失败自动回滚。**不丢记忆数据。**
 
+> 三种装法效果相同，都装的是同一个插件。
+
 装完后，在 DSH 左侧栏「更多」里打开「记忆星云」即可看到面板。
 
 > 前置：需要已安装 Node.js（DSH 通常自带）；安装器会读 `%DSH_HOME%` 定位到你的 DSH 环境。
+
+### ⚠️ 关于「插件市场里搜不到」
+
+插件市场的**网页版**（awesome-dsh-plugin.com）有本插件条目，但 DSH 客户端内 **Discover 搜索**用的是另一个索引，**只收录已发布到 npm 的插件**——本插件目前**未发布 npm**，所以在 Discover 里搜不到。
+
+**这不影响安装**：上面的 `dsh plugin ... add github:...` 命令直接从 GitHub 装，是官方支持的安装方式。
+
+| 你想 | 这样做 |
+|---|---|
+| **安装** | `dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory`（桌面端一般填 `desktop`） |
+| 在网页版市场找到条目 | 搜 `yb-zhai` 或 `agent-memory`（搜 `nebula` 找不到，描述里没有这个词） |
+| 在 DSH 内 Discover 搜到 | 需先发布到 npm，目前**不支持** |
 
 ---
 
