@@ -1,0 +1,85 @@
+name: Encoding Check
+
+# 拦「*.ps1 丢 BOM」这类靠语法检查发现不了的改动。
+#
+# 背景：PowerShell 5.1 读无 BOM 的 UTF-8 脚本时按系统 ANSI 代码页（中文 Windows 上
+# 是 GBK）解析，中文注释变乱码后可能吃掉括号，报出「Unexpected token '}'」这种
+# 和注释毫无关系的错误；而 PSParser::Tokenize 却报 0 错误 —— 两个工具结论相反。
+#
+# 实测：给 install.ps1 加几行中文注释、编辑器去掉 BOM，
+#       -DryRun 直接语法报错；补回 BOM 后恢复正常。
+#
+# 这里查的是「文件首字节」，不依赖任何语法解析。
+
+on:
+  pull_request:
+    paths:
+      - '**/*.ps1'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.js'
+      - '**/*.md'
+      - '**/*.cmd'
+      - '**/package.json'
+      - 'scripts/check-encoding.mjs'
+      - '.github/workflows/encoding-check.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  encoding:
+    name: BOM & line endings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check the checker itself
+        run: node --check scripts/check-encoding.mjs
+
+      # --all 连行尾一起查。CI 里是全新 clone（core.autocrlf=false），
+      # 工作区与仓库内容一致，不会受本机 autocrlf 影响。
+      - name: Run encoding check
+        run: node scripts/check-encoding.mjs --all --strict
+
+      # 自证有效：故意去掉 install.ps1 的 BOM，检查器必须报错。
+      # 防的是「检查器坏了但一直报绿」。
+      - name: Self-test (BOM loss must be caught)
+        run: |
+          cp install.ps1 /tmp/install.ps1.bak
+          # 去掉开头 3 字节 BOM
+          tail -c +4 /tmp/install.ps1.bak > install.ps1
+          if node scripts/check-encoding.mjs --strict; then
+            echo "::error::检查器未能发现 install.ps1 缺失 BOM —— 检查器已失效"
+            cp /tmp/install.ps1.bak install.ps1
+            exit 1
+          fi
+          echo "检查器正确识别出缺失 BOM。"
+          cp /tmp/install.ps1.bak install.ps1
+          node scripts/check-encoding.mjs --all --strict
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### 编码检查'
+            echo ''
+            echo '| 文件类型 | BOM | 行尾（仓库内） |'
+            echo '|---|---|---|'
+            echo '| `*.ps1` | **必须有** | LF |'
+            echo '| `*.mjs` / `*.cjs` / `*.js` / `*.html` / `*.cmd` / `*.json` | 无 | LF |'
+            echo '| `*.md` | 无 | 不强制 |'
+            echo ''
+            echo '本地自查：`npm run check:encoding`（只查 BOM）/ `npm run check:encoding:all`（含行尾）'
+            echo ''
+            echo '提交前自动拦截：`git config core.hooksPath .githooks`'
+          } >> "$GITHUB_STEP_SUMMARY"

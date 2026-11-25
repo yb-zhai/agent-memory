@@ -123,24 +123,27 @@ function main() {
 
     if (CHECK_EOL && rule.eol) {
       // 行尾判据取「仓库内格式」；新文件尚未提交时 HEAD 里没有它，
-      // 这时退回工作区内容，并跳过该文件的判断，避免把工作区 CRLF 误报成问题。
-      let repoBuf = null
-      try {
-        repoBuf = execFileSync('git', ['-C', REPO_ROOT, 'show', `HEAD:${rel}`], {
-          maxBuffer: 64 * 1024 * 1024,
-          stdio: ['ignore', 'pipe', 'ignore'],
-        })
-      } catch {
-        repoBuf = null
+      // 这时退回索引（暂存区）→ 工作区，保证 pre-commit 阶段也能查到。
+      let probeBuf = null
+      for (const ref of [`HEAD:${rel}`, `:${rel}`]) {
+        try {
+          probeBuf = execFileSync('git', ['-C', REPO_ROOT, 'show', ref], {
+            maxBuffer: 64 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
+          break
+        } catch {
+          probeBuf = null
+        }
       }
-      if (!repoBuf) continue // 新文件未入库：跳过行尾检查（BOM 已查过）
+      if (!probeBuf) probeBuf = workBuf // 完全未入库：退回工作区
 
-      const eol = detectEol(repoBuf)
+      const eol = detectEol(probeBuf)
       if (eol !== rule.eol) {
         problems.push({
           rel,
-          kind: `仓库内行尾为 ${eol}`,
-          detail: `期望 ${rule.eol}（查的是 git 里存的格式，工作区 CRLF 属正常）`,
+          kind: `行尾为 ${eol}`,
+          detail: `期望 ${rule.eol}（优先查 git 内格式；工作区 CRLF 属正常）`,
           fix: `统一为 ${rule.eol}：${rel}`,
         })
       }

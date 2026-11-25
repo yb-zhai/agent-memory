@@ -1,0 +1,40 @@
+#!/bin/sh
+# ── 提交前钩子 ────────────────────────────────────────────────────────────
+# 拦两件「靠代码审查和语法检查都发现不了」的事：
+#   1. 编码：*.ps1 丢 BOM / 其它文件多出 BOM（见 CONTRIBUTING「BOM 与行尾」）
+#   2. 行尾：把文件行尾改成了与仓库不一致的格式，diff 会变成整文件重写
+#
+# 安装（每人执行一次，仓库不会自动生效）：
+#   git config core.hooksPath .githooks
+#
+# 临时跳过（确实需要时）：
+#   git commit --no-verify
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+[ -n "$REPO_ROOT" ] && cd "$REPO_ROOT" || exit 0
+
+# 没有 node 就放行，不让环境问题挡住提交
+if ! command -v node >/dev/null 2>&1; then
+    echo "[pre-commit] 未找到 node，跳过编码检查"
+    exit 0
+fi
+
+[ -f scripts/check-encoding.mjs ] || exit 0
+
+echo "[pre-commit] 编码检查中 …"
+node scripts/check-encoding.mjs --all --strict
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "============================================================"
+    echo " 提交被拦下：编码检查未通过（问题清单见上）。"
+    echo ""
+    echo " *.ps1 必须带 UTF-8 BOM —— 否则 PowerShell 5.1 会按 GBK"
+    echo " 解析中文注释，报出和注释无关的语法错误，而 PSParser 却显示 0 错误。"
+    echo ""
+    echo " 自查：npm run check:encoding"
+    echo " 修复后 git add 重新提交；确实要跳过：git commit --no-verify"
+    echo "============================================================"
+    exit 1
+fi
+
+exit 0

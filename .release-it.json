@@ -70,7 +70,8 @@
   "hooks": {
     "before:init": [
       "node --check server.js",
-      "node scripts/check-commit-prefix.mjs"
+      "node scripts/check-commit-prefix.mjs",
+      "node scripts/check-encoding.mjs --all --strict"
     ]
   }
 }

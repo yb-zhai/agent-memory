@@ -160,6 +160,17 @@ npm run check:encoding          # 只查 BOM（日常用这个）
 npm run check:encoding:all      # BOM + 仓库内行尾，严格模式
 ```
 
+**三道自动拦截**（`*.ps1` 丢 BOM 这类问题不该靠人记）：
+
+| 时机 | 怎么配 | 拦什么 |
+|---|---|---|
+| **提交前** | 每人执行一次 `git config core.hooksPath .githooks` | BOM + 行尾，违规直接拒绝提交 |
+| **CI** | 自动生效（`.github/workflows/encoding-check.yml`） | 同上，且**自证有效**：故意去掉 `install.ps1` 的 BOM，检查器必须报错 |
+| **发版前** | 自动生效（`.release-it.json` 的 `before:init`） | 同上 |
+
+钩子一类的自动检查都是**本地可选**的：`.githooks` 需要 `core.hooksPath` 才会生效，
+新克隆仓库默认没有。CI 那层是强制的，所以即使没装钩子也不会漏到 main。
+
 | 文件类型 | BOM | 行尾（仓库内） |
 |---|---|---|
 | `*.ps1`（`install.ps1` / `uninstall.ps1`） | **必须有** UTF-8 BOM | LF |
