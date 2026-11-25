@@ -80,6 +80,29 @@ const HINDSIGHT_DIR = String(process.env.MEMORY_NEBULA_HINDSIGHT_DIR || '').trim
 const WORKER_WINDOW_JSON = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'worker-window.json') : null
 const WORKER_WINDOW_PS1 = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'maintenance', 'worker-window.ps1') : null
 const COST_GUARD_STATE = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'logs', 'cost-guard.state.json') : null
+const RUN_HINDSIGHT_PS1 = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'run-hindsight.ps1') : null
+const RUN_HINDSIGHT_VBS = HINDSIGHT_DIR ? path.join(HINDSIGHT_DIR, 'run-hindsight.vbs') : null
+
+/**
+ * worker 调度能不能用，取决于「这套 Hindsight 能不能被安全操作」，而不是「有没有 Hindsight」。
+ *
+ * worker-window.ps1 不是通过 Hindsight 的 API 控制 worker，而是从外部物理操作一套部署：
+ * 改写 run-hindsight.ps1 里的 WORKER_ENABLED、杀掉 hindsight-api 进程、再用 run-hindsight.vbs 拉起来。
+ * 所以这四样缺一不可，否则要么功能失效，要么杀完进程拉不回来（用户服务被停且不自愈）。
+ *
+ * 分发给用户的插件不带这几个文件——用户装 Hindsight 通常是 Docker 或 pip 直跑，
+ * 没有这套 ps1/vbs。此时整个调度入口应当隐藏，而不是显示一个点了会报错的下拉。
+ */
+function canScheduleWorker() {
+  if (!WORKER_WINDOW_JSON || !WORKER_WINDOW_PS1) return false
+  try {
+    return fs.existsSync(WORKER_WINDOW_PS1)
+      && fs.existsSync(RUN_HINDSIGHT_PS1)
+      && fs.existsSync(RUN_HINDSIGHT_VBS)
+  } catch {
+    return false
+  }
+}
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -643,7 +666,8 @@ export class MemoryNebulaServer {
 
   /** 读当前 worker 调度设置（worker-window.json） */
   async readWorkerSettings() {
-    if (!WORKER_WINDOW_JSON) {
+    // available=false 时面板隐藏整个调度入口，所以这里不能只看 json 是否存在。
+    if (!canScheduleWorker()) {
       return { available: false, schedulerEnabled: null, mode: 'manual', on: '23:00', off: '08:00', autoThreshold: 20 }
     }
     try {
@@ -733,8 +757,10 @@ export class MemoryNebulaServer {
 
   /** 写 worker 调度设置 + 触发一次 worker-window.ps1 */
   async writeWorkerSettings(input) {
-    if (!WORKER_WINDOW_JSON) {
-      throw new Error('未配置 MEMORY_NEBULA_HINDSIGHT_DIR，无法修改 worker 调度')
+    // 与 readWorkerSettings 同一判据：这套部署操作不了就明确拒绝，
+    // 不要写出一份「设置存下来了但永远不会生效」的 json 让人误解。
+    if (!canScheduleWorker()) {
+      throw new Error('未检测到可操作的 Hindsight 部署（需要 worker-window.ps1 与 run-hindsight.ps1/.vbs），无法修改 worker 调度')
     }
     const cur = await this.readWorkerSettings()
     const next = {

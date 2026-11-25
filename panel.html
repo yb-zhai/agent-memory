@@ -84,7 +84,7 @@
     <span class="sc-item"><span id="sc-quota-dot" class="dot"></span><span class="sc-k">额度</span><span id="sc-quota" class="sc-v">—</span></span>
     <span class="sc-item"><span id="sc-worker-dot" class="dot"></span><span class="sc-k">worker</span><span id="sc-worker" class="sc-v">—</span></span>
     <span class="sc-item"><span id="sc-apc-dot" class="dot"></span><span class="sc-k">Hindsight</span><span id="sc-apc" class="sc-v">—</span></span>
-    <span class="cfg-wrap"><button id="ws-btn" class="tb-btn">⚙ worker 调度</button>
+    <span class="cfg-wrap" id="ws-entry" style="display:none"><button id="ws-btn" class="tb-btn">⚙ worker 调度</button>
       <div id="ws-panel">
         <div class="row"><label style="min-width:0;flex:1">完全停用后台 worker</label><input id="ws-disable" type="checkbox" /></div>
         <div id="ws-schedule-body">
@@ -2982,8 +2982,14 @@ setInterval(refreshTopbar, 60000);
 // ── worker 调度设置面板 ──
 let wsSettings = { available:false, schedulerEnabled:null, mode:'manual', on:'23:00', off:'08:00', autoThreshold:20 };
 function renderWs() {
-  const available = wsSettings.available !== false;
-  const enabled = available && wsSettings.schedulerEnabled !== false;
+  // 只有服务端确认「这套 Hindsight 能被安全操作」才显示入口。
+  // 分发包不带 worker-window.ps1 / run-hindsight.ps1|.vbs，所以用户那边整个下拉会隐藏，
+  // 而不是留一个点了报错的按钮。注意必须是 === true：字段缺失时不能当成可用。
+  const available = wsSettings.available === true;
+  const entry = $('ws-entry');
+  if (entry) entry.style.display = available ? '' : 'none';
+  if (!available) return;
+  const enabled = wsSettings.schedulerEnabled !== false;
   const m = wsSettings.mode === 'auto' ? 'auto' : 'manual';
   for (const id of ['ws-disable','ws-save','ws-manual','ws-auto']) { const el=$(id); if(el) el.disabled = !available; }
   if ($('ws-disable')) $('ws-disable').checked = available ? !enabled : false;
