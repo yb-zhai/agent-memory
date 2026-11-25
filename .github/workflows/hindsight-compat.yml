@@ -1,0 +1,65 @@
+name: Hindsight Compat Check
+
+# 验证 scripts/check-hindsight-compat.mjs 自身是否可靠。
+#
+# 为什么不直接跑 check:hindsight 连真实 Hindsight：GitHub runner 上没有这个
+# 服务，而完整装一套要拉几 GB 依赖（PostgreSQL + 模型），还会消耗 LLM 额度。
+# 所以 CI 里改用本地 mock 服务模拟四种场景，断言检查器能给出正确判断：
+#   合规 → 0 / 缺端点 → 1 / 缺字段 → 1 / 不可达 → 2
+#
+# 这防的是「检查器坏了但一直报绿」。对上游真实接口的比对仍需在有 Hindsight
+# 的机器上手动跑：npm run check:hindsight
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/check-hindsight-compat.mjs'
+      - 'scripts/self-test.mjs'
+      - 'lib/engine.mjs'
+      - 'server.js'
+      - '.github/workflows/hindsight-compat.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/check-hindsight-compat.mjs'
+      - 'scripts/self-test.mjs'
+      - 'lib/engine.mjs'
+      - 'server.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    name: Checker self-test (mock)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check
+        run: |
+          node --check scripts/check-hindsight-compat.mjs
+          node --check scripts/self-test.mjs
+
+      - name: Run checker self-test
+        run: node scripts/self-test.mjs
+
+      # 说明：自检内部调用检查器时不加 --strict —— 它断言的是退出码与
+      # 输出内容，加 --strict 会改变「仅有警告」时的返回值，干扰断言。
+      # 对真实服务的 --strict 检查需在有 Hindsight 的机器上执行。
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Hindsight 兼容性检查器自检'
+            echo ''
+            echo 'CI 用本地 mock 服务验证检查器能正确识别：端点缺失、字段缺失、服务不可达。'
+            echo '对上游真实接口的比对请在有 Hindsight 的机器上跑 `npm run check:hindsight`。'
+          } >> "$GITHUB_STEP_SUMMARY"
