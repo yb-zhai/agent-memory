@@ -43,14 +43,17 @@
 
 | 你的情况 | 用哪种 | 一条命令 / 入口 | 有面板？ | 有双引擎？ |
 |---|---|---|---|---|
-| 用 **DSH**，想要完整面板 | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | `dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory` | ✅ | ✅（可选） |
-| 用 **DSH**，只想加几个记忆工具 | **方式 3** MCP Server → [跳到该节](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等) | 挂 `nebula-memory-mcp` | ❌ | ❌ |
+| **用 DSH（推荐）** | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | `dsh plugin --profile <profile> add github:yb-zhai/agent-memory` | ✅ | ✅（可选） |
+| 用 DSH，但只想要记忆工具、不要面板 | **方式 3** MCP Server → [跳到该节](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等) | 挂 `nebula-memory-mcp` | ❌ | ❌ |
 | 用 **Claude / Cursor / ChatGPT** 等 | **方式 3** MCP Server | `npx nebula-memory-mcp` | ❌ | ❌ |
 | 写 **Node.js** 代码要嵌进去 | **方式 1** 作为库 → [跳到该节](#1-作为库nodejs任何模型可用) | `import { NebulaMemory }` | ❌ | ❌ |
-| 别的**语言 / 进程**要读写 | **方式 2** HTTP 服务 → [跳到该节](#2-作为独立-http-服务) | `node server.js` → `:8898` | 仅本地 | ❌ |
+| 别的**语言 / 进程**要读写，或想裸起面板 | **方式 2** HTTP 服务 → [跳到该节](#2-作为独立-http-服务) | `node server.js` → `:8898` | ✅ | ✅（可选） |
 
-> **一句话**：面板和双引擎只有 DSH 插件（方式 4）有；其余四种都是单引擎的四臂召回。
-> 最省事的起步：`npx nebula-memory-mcp`（方式 3）或让 DSH 自己装（方式 4）。
+> **DSH 用户就装方式 4**：那是完整集成包（面板 + 双引擎 + 安装脚本），
+> 和方式 3 的 MCP 版是**两个不同的包**——MCP 版只有记忆工具，没有面板、没有双引擎。
+>
+> **面板不是方式 4 独有的**：方式 2 直接 `node server.js` 起的也是同一个面板服务（同一个 `server.js`），
+> 区别只在方式 4 额外做了 DSH 插件接入（左侧栏入口、安装/回滚脚本）。
 
 ## Quick Start（5 行跑通）
 
@@ -260,6 +263,8 @@ node server.js
 ```
 
 启动后监听 `127.0.0.1:8898`，暴露 REST API（`/recall`、`/remember`、`/state`、`/graph` 等）和 SSE 实时推流。任何语言（Python / JS / 其他）都能用 `requests` / `fetch` 调用。
+
+**面板就在同一个端口**：浏览器打开 `http://127.0.0.1:8898/` 就是完整的记忆星云面板（和 DSH 插件版是同一个 `server.js`）。这种方式只是手动起服务、没有 DSH 的插件集成；装成插件请见[方式 4](#4-作为-dsh-插件可视化面板)。
 
 ### 3. 作为 MCP Server（接入 Claude / Cursor / ChatGPT / Grok / Gemini 等）
 
