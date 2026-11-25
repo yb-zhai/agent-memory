@@ -31,6 +31,38 @@ const TIMEOUT = Number(getArg('--timeout', '10000')) || 10000
 
 // ── 我们依赖的契约（改这里之前先确认真的是刚需）────────────────────────────
 // 每条 path 用 OpenAPI 的模板写法；fields 是我们在代码里实际读取的响应字段。
+//
+// ⚠️ 与业务代码的对应关系 —— 改 lib/engine.mjs 或 server.js 里下列位置时，
+//    必须同步更新这里的 CONTRACT，否则检查器会漏掉真实依赖：
+//
+//   /health  {database}
+//     lib/engine.mjs:177   _probe()：status === 'healthy' | 'ok' | database === 'connected'
+//     server.js:892        向导第①步：显示 h.database 与 h.db_acquire_ms
+//
+//   /version  {api_version, features}
+//     server.js:914        向导第②步：读 verRes.api_version 展示上游版本
+//
+//   /v1/default/banks  {元素含 bank_id, fact_count}
+//     lib/engine.mjs:212-213   选 bank：按 bank_id 匹配 coding-agent::<profile>，
+//                              否则按 fact_count 降序取最大
+//     server.js:910-913        向导第②步：列出 bank_id + fact_count
+//
+//   /v1/default/banks/{bank_id}/stats  {total_nodes, total_links, total_documents}
+//     lib/engine.mjs:380-382   refreshStats()：hs.total_nodes / total_links / total_documents
+//     server.js:320-327       hybrid 模式下用 hsNodes / hsLinks 作为权威计数
+//
+//   /v1/default/banks/{bank_id}/graph  {nodes, edges}
+//     lib/engine.mjs:257-265   解析节点（d.id/d.text/d.label/d.date）与边（d.source/d.target/d.weight）
+//     server.js:239-240        合并进星图：g.nodes / g.edges
+//
+//   /v1/default/banks/{bank_id}/operations  {total}   ← 用 status=processing / pending 各查一次
+//     server.js:687-691        worker 运行状态：total > 0 即视为在干活
+//
+//   /v1/default/banks/{bank_id}/memories/dry-run-extract  {usage}   ← 可选，仅 --probe-llm 时校验
+//     server.js:962-963        向导第③步：用 usage.total_tokens 确认 LLM 真的被调用
+//
+// 注：fail-open 的地方也要维护 —— 例如 engine.mjs:257 用 `res.value.nodes || []`，
+// 字段若改名成别的，代码不会报错、只会静默拿到空数组；这类正是本脚本要拦的。
 const CONTRACT = [
   { path: '/health', method: 'get', fields: ['database'], note: '端口探测 + 数据库状态' },
   { path: '/version', method: 'get', fields: ['api_version', 'features'], note: '版本与特性开关' },
