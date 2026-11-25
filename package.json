@@ -1,77 +1,79 @@
 {
-    "name": "dsh-nebula-memory",
-    "version": "2.0.2",
-    "private": true,
-    "type": "module",
-    "description": "DSH memory nebula — a self-contained memory panel + zero-dependency local memory engine (NebulaMemory JSONL), with optional Hindsight HTTP API overlay. Packable standalone, installable into any DSH.",
-    "license": "MIT",
-    "author": "yb-zhai",
-    "icon": "assets/icon-180.png",
-    "main": "index.js",
-    "exports": {
-        ".": "./index.js",
-        "./client": "./client.js",
-        "./server": "./server.js",
-        "./package.json": "./package.json"
+  "name": "dsh-nebula-memory",
+  "version": "2.0.2",
+  "private": true,
+  "type": "module",
+  "description": "DSH memory nebula — a self-contained memory panel + zero-dependency local memory engine (NebulaMemory JSONL), with optional Hindsight HTTP API overlay. Packable standalone, installable into any DSH.",
+  "license": "MIT",
+  "author": "yb-zhai",
+  "icon": "assets/icon-180.png",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./server": "./server.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "server.js",
+    "lib/",
+    "memory/",
+    "shared/",
+    "scripts/",
+    "!scripts/bench-4groups.json",
+    "!scripts/*-results.json",
+    "!scripts/cross-paraphrase-hindsight.json",
+    "!scripts/cross-paraphrase-local.json",
+    "!scripts/freshness-hindsight.json",
+    "panel.html",
+    "cordis.patch.yml",
+    "assets/",
+    "icon.svg",
+    "config.example.json",
+    ".env.example",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "install.ps1",
+    "install.cmd",
+    "uninstall.ps1",
+    "uninstall.cmd"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run",
+    "release:patch": "release-it patch",
+    "release:minor": "release-it minor",
+    "release:major": "release-it major",
+    "release:pre": "release-it --preRelease=beta",
+    "release:rc": "release-it --preRelease=rc",
+    "changelog": "release-it --changelog",
+    "check:hindsight": "node scripts/check-hindsight-compat.mjs",
+    "check:hindsight:json": "node scripts/check-hindsight-compat.mjs --json",
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "check:encoding:strict": "node scripts/check-encoding.mjs --strict",
+    "check:encoding:all": "node scripts/check-encoding.mjs --all --strict",
+    "check:readme-version": "node scripts/check-readme-version.mjs",
+    "check:readme-version:strict": "node scripts/check-readme-version.mjs --strict"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     },
-    "files": [
-        "index.js",
-        "client.js",
-        "server.js",
-        "lib/",
-        "memory/",
-        "shared/",
-        "scripts/",
-        "!scripts/bench-4groups.json",
-        "!scripts/*-results.json",
-        "!scripts/cross-paraphrase-hindsight.json",
-        "!scripts/cross-paraphrase-local.json",
-        "!scripts/freshness-hindsight.json",
-        "panel.html",
-        "cordis.patch.yml",
-        "assets/",
-        "icon.svg",
-        "config.example.json",
-        ".env.example",
-        "README.md",
-        "LICENSE",
-        "CONTRIBUTING.md",
-        "SECURITY.md",
-        "install.ps1",
-        "install.cmd",
-        "uninstall.ps1",
-        "uninstall.cmd"
-    ],
-    "scripts": {
-        "start": "node server.js",
-        "release": "release-it",
-        "release:dry": "release-it --dry-run",
-        "release:patch": "release-it patch",
-        "release:minor": "release-it minor",
-        "release:major": "release-it major",
-        "release:pre": "release-it --preRelease=beta",
-        "release:rc": "release-it --preRelease=rc",
-        "changelog": "release-it --changelog",
-        "check:hindsight": "node scripts/check-hindsight-compat.mjs",
-        "check:hindsight:json": "node scripts/check-hindsight-compat.mjs --json",
-        "check:encoding": "node scripts/check-encoding.mjs",
-        "check:encoding:strict": "node scripts/check-encoding.mjs --strict",
-        "check:encoding:all": "node scripts/check-encoding.mjs --all --strict"
-    },
-    "dsh": {
-        "bundle": {
-            "patch": "./cordis.patch.yml"
-        },
-        "client": {
-            "platform": "web",
-            "inject": [
-                "@deepseek-ai/dsh-client-ui-layout",
-                "@deepseek-ai/dsh-client-ui-sidebar"
-            ]
-        }
-    },
-    "devDependencies": {
-        "@release-it/conventional-changelog": "^12.0.2",
-        "release-it": "^21.1.3"
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
+  },
+  "devDependencies": {
+    "@release-it/conventional-changelog": "^12.0.2",
+    "release-it": "^21.1.3"
+  }
 }
