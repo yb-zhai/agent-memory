@@ -149,13 +149,41 @@ npm run release:major           # 不兼容变更发版
 | 文档引用 | 改了标题就复查锚点；`npm run check:hindsight` 可验接口契约 |
 | 代码可跑 | `node --check` 过语法，**并在浏览器/实际入口里真跑一遍** |
 | 版本三处一致 | 源码 `package.json` == 安装目录 `package.json` == 运行中 `/healthz` 返回的 `version`；tag 名应与 `package.json` 一致 |
+| tag 指向正确 | 见下方「校验 tag 指向」，必须用 `^{commit}` 解引用后再比 |
 
-> 两条真实教训：
+#### 校验 tag 指向：附注 tag 不能用 rev-parse 直接比
+
+本仓库的发布 tag 是**附注 tag**（annotated tag），它本身是一个独立对象，
+`git rev-parse v2.0.0` 返回的是 **tag 对象的 ID**，不是它指向的提交 ID。
+直接拿它和 `git rev-parse HEAD` 比，永远不相等。
+
+```bash
+# ❌ 错：比的是 tag 对象 ID，和 HEAD 必然不等
+git rev-parse v2.0.0
+git rev-parse HEAD
+
+# ✅ 对：先解引用到提交，再比
+git rev-parse 'v2.0.0^{commit}'    # tag 指向哪个提交
+git rev-parse HEAD                 # 当前 HEAD
+```
+
+远程侧同理，`ls-remote` 要用 `^{}` 后缀才能看到解引用后的提交：
+
+```bash
+git ls-remote origin 'refs/tags/v2.0.0^{}'
+```
+
+> 附注 tag 对象 ID 与提交 ID 不同是**正常现象**，不代表 tag 有问题。
+
+> 三条真实教训：
 > 1. 修 CHANGELOG 时行尾写成了混合 LF/CRLF（仓库原本纯 LF），diff 看不出，肉眼看也不明显；
 > 2. 面板改动用了未定义的变量，`node --check` 能过（语法合法），
->    但浏览器一打开就 `ReferenceError` 整块跳过渲染。
+>    但浏览器一打开就 `ReferenceError` 整块跳过渲染；
+> 3. 移动 v2.0.0 tag 后，用 `git rev-parse v2.0.0` 与 `git rev-parse HEAD` 对比，
+>    误判为「不一致」，实际是附注 tag 对象 ID 与提交 ID 本就不同。
 >
-> 所以「语法通过」不等于「能跑」，一定要在真实入口里跑一遍。
+> 所以「语法通过」不等于「能跑」，「两个 ID 不相等」也不等于「指向不对」——
+> 都要用正确的判据再验一次。
 
 ### 预发布版本
 
