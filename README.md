@@ -554,6 +554,17 @@ hindsight-api --host 127.0.0.1 --port 8888
 > 用 Docker 方式装则不需要管这一条。
 
 **第 3 步：打开面板 → 设置 → 点「检测 Hindsight」**
+> **上面面板里填的 API Key 是什么？**
+> 它只是访问本机 Hindsight 服务的通行证（发往 `127.0.0.1:8888` 的 Bearer 头），
+> **不参与任何模型调用，也不产生费用**。真正跑 consolidate / retain 的是
+> **Hindsight 服务侧**配的 `HINDSIGHT_API_LLM_API_KEY`，二者是不同的两把钥匙、方向相反：
+>
+> ```
+> 面板 key  ──►  本机 Hindsight:8888          （本机认证，不出本机）
+> LLM key   ──►  api.openai.com 或你配的厂商   （消耗该厂商账户额度）
+> ```
+>
+> 因此第③步「LLM 可用」检的是**服务侧**有没有配好 LLM，失败与面板 key 无关。
 
 向导会自动探测三步，全部通过才认为可用：
 
@@ -586,10 +597,47 @@ hindsight-api --host 127.0.0.1 --port 8888
 - **这是熔断上限，几乎不会真达到**——普通用户实际一天约 100万~300万 token，折合 **1.3 ~ 3.8 元/天**；
 - **引擎 A（本地四臂）永远免费**；引擎 B（Hindsight）的 LLM 计费是可预期、可透明的。
 
-> 所以放心：接上引擎 B 后成本也是**明码标价、几块钱/天的量级**，不会是无底洞；
+> 所以放心：**如果你自己跑 Hindsight 并往里写数据**，成本是**明码标价、几块钱/天的量级**，不会是无底洞；
 > 换成 Ollama 等本地模型后，这笔费用还可以降到零。
+> **而只用本插件的话，这笔费用与你无关**——见下一节的澄清。
 
 > **放心用本地四臂就行**：它零依赖、零成本、装完即用，是这个项目当前最可靠、最值得用的部分。
+#### 先澄清一个最常被误解的点：本插件**不产生**这部分费用
+
+上面那些数字来自「Hindsight 自己跑 retain 和 consolidate」。**但本插件只读取 Hindsight，从不写入。**
+
+`lib/engine.mjs` 里所有写入动作都路由到本地引擎：
+
+```js
+async remember(input)    { return this.local.remember(input) }
+async observe(input)     { return this.local.observe(input) }
+async consolidate()      { return this.local.consolidate() }   // 不是 Hindsight
+```
+
+对 Hindsight 的调用只有三类，全是只读：`recall`（召回）、`graph`（星图）、`stats`（统计）。
+唯一的写请求是面板「检测」时的 `dry-run-extract`——它的语义就是**不落库**，一次约 3000 tokens。
+
+| 你的情况 | 本插件产生的 Hindsight 费用 |
+|---|---|
+| 只装插件，不装 Hindsight | **0**（纯本地四臂） |
+| 装插件 + 装了 Hindsight | **≈ 0**（只有面板检测那一次探测） |
+| Hindsight 里另有其他写入源（其他 agent、脚本、DSH 主集成） | 那部分费用由那些写入源产生，**与本插件无关** |
+
+所以：**如果你只因为装了本插件而担心 Hindsight 账单，那是多虑了。**
+
+#### 如果确实想降低「你自己 Hindsight」的开销
+
+这是可选的，且**完全不需要改代码**——下面都是上游原生支持的配置项：
+
+| 配置项 | 默认 | 建议 | 作用 |
+|---|---|---|---|
+| `HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS` | `4096` | 设为 `0` | 单次 consolidation 不再附带原始事实。**收益最大**，实测平均 prompt 体积降约三成 |
+| `HINDSIGHT_API_CONSOLIDATION_MAX_TOKENS` | `512` | 设为 `128` | 限制每次召回的 observation 正文预算 |
+| `HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE` | `8` | 一般**不要调大** | 批次越大单次越贵；但批次太小又会让固定的 system prompt 被反复重付，需按实际验证 |
+
+> ⚠️ 注意 `HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS=0` 只省 token，不省查询：
+> 上游仍会把源事实取回来。真正完全关掉需要改上游源码，**不建议普通用户这么做**——
+> 那会让你脱离上游默认行为，升级后还得重新打补丁。
 
 ---
 
@@ -1035,6 +1083,17 @@ docker run -it --name hindsight --restart unless-stopped -p 8888:8888 \
 **第 2 步：按上面的选型配好环境变量并启动**（注意 `PYTHONUTF8=1`）
 
 **第 3 步：回到插件面板 → 设置 → 点「检测 Hindsight」**
+> **上面面板里填的 API Key 是什么？**
+> 它只是访问本机 Hindsight 服务的通行证（发往 `127.0.0.1:8888` 的 Bearer 头），
+> **不参与任何模型调用，也不产生费用**。真正跑 consolidate / retain 的是
+> **Hindsight 服务侧**配的 `HINDSIGHT_API_LLM_API_KEY`，二者是不同的两把钥匙、方向相反：
+>
+> ```
+> 面板 key  ──►  本机 Hindsight:8888          （本机认证，不出本机）
+> LLM key   ──►  api.openai.com 或你配的厂商   （消耗该厂商账户额度）
+> ```
+>
+> 因此第③步「LLM 可用」检的是**服务侧**有没有配好 LLM，失败与面板 key 无关。
 
 三态自检会逐项确认端口、API、LLM 都通；任何一项不过都会明确告诉你卡在哪，
 不会「看着是绿的其实写不进记忆」。
