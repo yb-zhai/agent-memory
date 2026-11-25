@@ -10,6 +10,12 @@
 Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
 
 
+## [2.0.2](https://github.com/yb-zhai/agent-memory/compare/v2.0.1...v2.0.2) (2026-11-25)
+
+### Fixed
+
+* worker 调度入口按部署能力显示，不再对用户误呈现 ([1b9c3fe](https://github.com/yb-zhai/agent-memory/commit/1b9c3fe2da06ceede950f9aa11a8555553cec670))
+
 ## [2.0.1](https://github.com/yb-zhai/agent-memory/compare/v2.0.0...v2.0.1) (2026-11-25)
 
 ### Fixed
