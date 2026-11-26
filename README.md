@@ -30,7 +30,7 @@
 
 | # | 发布物 | 当前版本 | 是什么 | 谁会关心 |
 |---|---|---|---|---|
-| 1 | **DSH 插件** `dsh-nebula-memory` | **2.0.3** | 完整产品：面板 + 四臂 + 可选 Hindsight | 用 DSH、想要面板的人 |
+| 1 | **DSH 插件** `dsh-nebula-memory` | **2.0.4** | 完整产品：面板 + 四臂 + 可选 Hindsight | 用 DSH、想要面板的人 |
 | 2 | **npm 包** `nebula-memory-mcp` | **1.2.1** | 纯 MCP 工具，供任何 MCP 客户端接入 | 用 Claude / Cursor / DSH 当 MCP 客户端的人 |
 | 3 | **MCP Registry 条目** | **1.5.0** | 目录发布记录（指向 npm 包） | MCP 客户端自动发现 |
 | 4 | **MCP 服务自报版本** | **1.2.0** | 握手时返回给客户端的版本号 | 排障时看 |
@@ -649,7 +649,7 @@ async consolidate()      { return this.local.consolidate() }   // 不是 Hindsig
 
 | # | 版本线 | 当前 | 代表什么 | 谁在读 |
 |---|---|---|---|---|
-| 1 | **DSH 插件** `dsh-nebula-memory` | **2.0.3** | 完整产品：面板 + 本地四臂引擎 + 可选 Hindsight 双引擎，装进 DSH 用 | DSH 插件管理器、`install.ps1`、`/healthz` |
+| 1 | **DSH 插件** `dsh-nebula-memory` | **2.0.4** | 完整产品：面板 + 本地四臂引擎 + 可选 Hindsight 双引擎，装进 DSH 用 | DSH 插件管理器、`install.ps1`、`/healthz` |
 | 2 | **npm 包** `nebula-memory-mcp` | **1.2.1** | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor / ChatGPT 等 MCP 客户端接入；**DSH 也能作为 MCP 客户端挂载它** | npm / npx 用户、MCP 客户端 |
 | 3 | **MCP Registry 条目** `io.github.yb-zhai/nebula-memory` | **1.5.0** | Registry 上的发布记录，指向某一版 npm 包 | MCP 客户端发现 |
 | 4 | **MCP 服务自报版本**（`server.json` 里的 `version` / `mcp-server.mjs` 的 `version`） | **1.2.0** | MCP `initialize` 握手时返回给客户端的版本号 | 与你直连的 MCP 客户端 |
