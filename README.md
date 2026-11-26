@@ -377,7 +377,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 >
 > 另外两点：
 > ① `--profile` / `-Profile` 要填你实际在用的那个（桌面端一般是 `desktop`，Web 端是 `web`）；
-> ② DSH 内的 **Discover 搜索搜不到**本插件（未发布 npm，客户端索引只收 npm 包），但上面的命令直接用，不受影响。
+> ② DSH 内的**「发现」**搜不到本插件（那是自定义索引源，只收 npm 包）；但**「插件市场」搜索能搜到**。上面的命令直接用，不受影响。
 > 详见[安装到 DSH](#安装到-dsh)。
 
 ---
@@ -930,17 +930,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 > 前置：需要已安装 Node.js（DSH 通常自带）；安装器会读 `%DSH_HOME%` 定位到你的 DSH 环境。
 
-### ⚠️ 关于「插件市场里搜不到」
+### ⚠️ 两个「市场」入口，收录规则不一样
 
-插件市场的**网页版**（awesome-dsh-plugin.com）有本插件条目，但 DSH 客户端内 **Discover 搜索**用的是另一个索引，**只收录已发布到 npm 的插件**——本插件目前**未发布 npm**，所以在 Discover 里搜不到。
+DSH 客户端里有两个**不同**的入口，能搜到的东西不一样，别混在一起看：
 
-**这不影响安装**：上面的 `dsh plugin ... add github:...` 命令直接从 GitHub 装，是官方支持的安装方式。
+| 入口 | 收录什么 | 本插件 |
+|---|---|---|
+| **插件市场**（搜索框） | npm 包 + GitHub 仓库发现 | ✅ **能搜到**（走 GitHub 源） |
+| **发现**（自定义索引源） | 索引文件里列出的插件。本机当前这个索引 3,315 个**全是 npm 包** | ❌ 搜不到（本插件未发布 npm） |
+
+**这不影响安装**：`dsh plugin ... add github:...` 直接从 GitHub 装，是官方支持的安装方式。
 
 | 你想 | 这样做 |
 |---|---|
-| **安装** | `dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory`（桌面端一般填 `desktop`） |
-| 在网页版市场找到条目 | 搜 `yb-zhai` 或 `agent-memory`（搜 `nebula` 找不到，描述里没有这个词） |
-| 在 DSH 内 Discover 搜到 | 需先发布到 npm，目前**不支持** |
+| **安装（推荐）** | `dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory`（桌面端一般填 `desktop`） |
+| 在客户端**插件市场**找到 | 搜 `agent-memory` 或 `yb-zhai` |
+| 在**发现**里找到 | 需先发布到 npm，目前**不支持** |
+| 在网页版市场（awesome-dsh-plugin.com）找到条目 | 搜 `yb-zhai` 或 `agent-memory` |
+
+> **⚠️ 别搜 `nebula`。** 会命中两个**别人家的**插件 —— `dsh-memory-nebula`（1.11.76）
+> 和 `dsh-nebula-mind`（0.8.3）——名字极像但完全无关。
+> 本项目的包名是 `dsh-nebula-memory`，三个名字只差词序。
+
+> **⚠️ 市场卡片跟仓库 `main` 的 HEAD 走，不是发版 tag。**
+> 也就是说 `main` 上推了未发版的内容，市场用户装到的就是那一版。
+> 卡片上**不显示版本号**也是同一个原因：GitHub 源的版本要现拉，不像 npm 源那样直接读索引。
 
 ---
 
