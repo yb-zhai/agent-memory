@@ -10,6 +10,23 @@
 Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
 
 
+## [2.0.3](https://github.com/yb-zhai/agent-memory/compare/v2.0.2...v2.0.3) (2026-11-26)
+
+### Fixed
+
+* worker 状态灯补「已关」态，不再把关闭中的 worker 显示成待机 ([19711a0](https://github.com/yb-zhai/agent-memory/commit/19711a0cd50e0aeb4a5089f3406bf41e841957f9))
+
+### Docs
+
+* 版本表里的 DSH 插件版本更新到 2.0.2 ([671ba4b](https://github.com/yb-zhai/agent-memory/commit/671ba4b3b5ea7b69a1aa5cdd567263edcd290aaf))
+* 补 tag 固定版本的安装写法（已实测） ([8201e26](https://github.com/yb-zhai/agent-memory/commit/8201e26d9e5cdca0f62deab67f037df1cca671b2)), references [yb-zhai/agent-memory#v2](https://github.com/yb-zhai/agent-memory/issues/v2)
+* 区分「插件市场」与「发现」两个入口，修正搜不到的表述 ([f3bee38](https://github.com/yb-zhai/agent-memory/commit/f3bee385b6e7d4783bda0bf667a166048caa291e))
+* **contributing:** 发版必须同步 README 版本表 ([4422c80](https://github.com/yb-zhai/agent-memory/commit/4422c80d6c3d32edd803cdfcbc8c9a524c1eed4f))
+
+### Chore
+
+* **release:** 发版前检查 README 版本表是否与 package.json 一致 ([da9c522](https://github.com/yb-zhai/agent-memory/commit/da9c5222d830586dd46d46a24a6e31077b60e270))
+
 ## [2.0.2](https://github.com/yb-zhai/agent-memory/compare/v2.0.1...v2.0.2) (2026-11-25)
 
 ### Fixed
