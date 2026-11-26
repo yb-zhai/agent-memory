@@ -37,17 +37,47 @@
 
 > ⚠️ 第 2 与第 4 条目前不一致（1.2.1 vs 1.2.0），不影响功能。详见[版本说明](#版本说明四条独立版本线别混淆)。
 
-### 接入方式：5 种用法，按你的身份选
+### 接入方式：6 种用法，按你的身份选
 
-下文 [`## 安装 / 接入方式`](#安装--接入方式) 里按 1~4 展开，对照着看：
+下文 [`## 安装 / 接入方式`](#安装--接入方式) 里按 1~4 展开，对照着看（WorkBuddy 是方式 3 的变体，单独列出）：
 
 | 你的情况 | 用哪种 | 入口 | 有面板？ | 有双引擎？ |
 |---|---|---|---|---|
 | **用 DSH（推荐）** | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | 见下方「方式 4 的三种装法」 | ✅ | ✅（可选） |
 | 用 DSH，但只想要记忆工具、不要面板 | **方式 3** MCP Server → [跳到该节](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等) | 挂 `nebula-memory-mcp` | ❌ | ❌ |
 | 用 **Claude / Cursor / ChatGPT** 等 | **方式 3** MCP Server | `npx nebula-memory-mcp` | ❌ | ❌ |
+| 用 **WorkBuddy** | **方式 3 的 WorkBuddy 版** `nebula-workbuddy-mcp` → 见下方说明 | `node install.mjs`（**未发布 npm，需本地源码**） | ❌ | ❌ |
 | 写 **Node.js** 代码要嵌进去 | **方式 1** 作为库 → [跳到该节](#1-作为库nodejs任何模型可用) | `import { NebulaMemory }` | ❌ | ❌ |
 | 别的**语言 / 进程**要读写，或想裸起面板 | **方式 2** HTTP 服务 → [跳到该节](#2-作为独立-http-服务) | `node server.js` → `:8898` | ✅ | ✅（可选） |
+
+#### WorkBuddy 版 MCP（`nebula-workbuddy-mcp`）
+
+和通用版 `nebula-memory-mcp` **引擎完全相同**，区别只在三处：
+
+- 记忆库默认位置跟着 WorkBuddy profile 走：`~/.workbuddy/nebula-memory`
+- 工具描述按 WorkBuddy 的中文语境重写（强调「动手前先 recall」）
+- 多两个工具：`import_workbuddy`（导入 WorkBuddy 的 `memory.md` + 本地会话 transcript）、
+  `workbuddy_info`（探测路径与导入水位）
+
+**接入三步**（在本项目所在目录执行，Windows PowerShell）：
+
+```powershell
+# 1. 写进 ~/.workbuddy/mcp.json（自动备份原文件，只动自己那一条）
+node install.mjs
+
+# 2. 导入 WorkBuddy 最近 90 天的历史（幂等，重复跑只跳过不重复写）
+node mcp-server.mjs import --days 90
+
+# 3. 按 WorkBuddy 实际使用的配置验证握手 + 召回
+node handshake.mjs --query "上次那个问题" --query "我的偏好"
+```
+
+然后**重启 WorkBuddy**，在「插件 → MCP 服务器」里确认 `nebula-memory` 是绿色，
+工具列表能看到 `recall / remember / recall_context / import_workbuddy`。
+
+> ⚠️ **这个包目前未发布到 npm**（`nebula-workbuddy-mcp` 在 registry 上是 404），
+> 所以上表「入口」写的是本地 `node install.mjs`，不是 `npx`。
+> 它只读 WorkBuddy 的文件、不改 WorkBuddy 任何内容；详见该目录的 `README.md`。
 
 #### 方式 4（DSH 插件）的三种装法——**任选一种，装的是同一个东西**
 
