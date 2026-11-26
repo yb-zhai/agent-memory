@@ -85,8 +85,8 @@ node handshake.mjs --query "上次那个问题" --query "我的偏好"
 
 > 📊 **WorkBuddy 客户端评测（15 页，第三方视角）**：按接入方式 / 运行方式 / 架构 / 数据链 /
 > 维度 / 服务对象 / 内容 / 提炼 / 分库 / 存储 / 联网 / 召回 / 可解释性 / 实用性 / 用途
-> 共 15 个维度拆解这个连接器，含本机实测数据（927 节点 · 944 边 · 3.44 MB、召回 p50 13 ms、
-> LongMemEval 500 题 Recall@5 99.8%）。
+> 共 15 个维度拆解这个连接器，含本机实测数据（评测时点：28 份会话 / 927 节点 · 944 边 ·
+> 3.44 MB、召回 p50 13 ms、LongMemEval 500 题 Recall@5 99.8%）。
 >
 > [下载评测 PPT](docs/workbuddy-connector-review.pptx)
 
