@@ -140,6 +140,36 @@ Select-String -Path mcp-server.mjs -Pattern "^  version:"       # 4. 自报版�
 **不要改的地方**：README 顶部面板动画那句「v2.0.0 实测」是**截图录制时的版本**，
 不是当前版本声明，升级时保持原样。
 
+### 发版时的署名与仓库地址
+
+**每次升版本都要确认这两件事，不要只在建仓库时做一次。**
+
+| 位置 | 要求 | 当前状态 |
+|---|---|---|
+| `package.json` 的 `author` | `"yb-zhai"` | 已是 |
+| `package.json` 的 `repository` / `homepage` / `bugs` | 指向 `https://github.com/yb-zhai/agent-memory` | 已是（2.0.4 补的） |
+| 源码文件头注释 | 一行 ` * 仓库：https://github.com/yb-zhai/agent-memory` | server.js / index.js / client.js / lib/engine.mjs / mcp-server.mjs 已有 |
+
+**加文件头那行时注意行尾**：本仓库各文件行尾不统一（`server.js`/`client.js`/`index.js` 是 LF，
+`lib/engine.mjs`/`mcp-server.mjs` 是 CRLF），**不要用「按多数派 split」的方式插行**。
+2026-11-26 实际踩过：`index.js` 是混合行尾（3 CRLF + 122 LF），按 `split('\r\n')` 处理时
+整段代码被当成一个元素，仓库地址被插进了函数体里，而 `git diff --numstat` 仍只显示 `1 0`
+—— **看起来只加了一行，实际把代码打断了**。
+
+正确做法是按**字符位置**插入，并沿用该行自己的 EOL：
+
+```powershell
+$p = 'index.js'; $repo = 'https://github.com/yb-zhai/agent-memory'
+$t = [IO.File]::ReadAllText($p)
+$m = $t.IndexOf('DSH-memory-nebula — host half')      # 标题行
+$nl = $t.IndexOf("`n", $m)                            # 该行行尾
+$eol = if ($t[$nl-1] -eq "`r") { "`r`n" } else { "`n" }
+$t = $t.Insert($nl + 1, " * 仓库：$repo$eol")
+[IO.File]::WriteAllText($p, $t, (New-Object Text.UTF8Encoding($false)))
+```
+
+**判断标准**：改完必须 `node --check <文件>` 通过；只信 `git diff --stat` 会漏掉这类破坏。
+
 ### 提交信息规范（Conventional Commits）
 
 发版工具依据提交前缀自动判定版本号并生成 CHANGELOG，**请严格使用**：

@@ -1,5 +1,6 @@
 /**
  * DSH-memory-nebula — host half.
+ * 仓库：https://github.com/yb-zhai/agent-memory
  *
  * 面板由内置零依赖 server.js 提供。host 只负责确保服务在跑；
  * 面板 URL 由 client half 探测同一端口范围获得，端口冲突不破坏 iframe。

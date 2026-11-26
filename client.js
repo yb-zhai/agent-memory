@@ -1,5 +1,6 @@
 /**
  * DSH-memory-nebula — client half.
+ * 仓库：https://github.com/yb-zhai/agent-memory
  *
  * 注册主面板 + 侧栏入口。面板是内置 server.js 提供的页面（默认 127.0.0.1:8898），
  * 插件只拥有 iframe 外壳；渲染、SSE、召回逻辑都在页面里。

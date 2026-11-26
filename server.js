@@ -1,5 +1,6 @@
 /**
  * DSH-memory-nebula — 本地面板服务（零依赖，单目录可外发）。
+ * 仓库：https://github.com/yb-zhai/agent-memory
  *
  * 数据面统一由 lib/engine.mjs 的 MemoryEngine 提供：
  *   - 默认纯本地 JSONL（NebulaMemory，零依赖，独立可运行）；

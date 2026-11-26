@@ -1,5 +1,6 @@
 /**
  * agent-memory MCP Server — 纯本地版（零依赖）。
+ * 仓库：https://github.com/yb-zhai/agent-memory
  *
  * 一个 stdio 上的 Model Context Protocol (MCP) 服务，把 NebulaMemory 记忆引擎
  * 暴露给 Claude Desktop / Cursor / Windsurf 等任何 MCP 客户端。
