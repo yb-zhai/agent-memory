@@ -104,6 +104,29 @@ function canScheduleWorker() {
   }
 }
 
+/**
+ * 读 run-hindsight.ps1 里 WORKER_ENABLED 的**实际值**。
+ *
+ * 为什么需要单独读：worker-window.json 的 schedulerEnabled 只表示「调度器开着」，
+ * 不代表 worker 此刻在跑。调度器会在时段外（或积压低于阈值时）把
+ * run-hindsight.ps1 里那行改成 false —— 这是**另一种**关闭，面板必须能区分。
+ * 否则会出现「workers 明明关着，面板却显示待机（绿点）」的误呈现：
+ * 用户以为记忆在写，实际 retain 全部堆在队列里。
+ *
+ * 只认 'true'/'false' 两种精确写法，与 maintenance/worker-window.ps1 的替换规则一致。
+ * 读不到（文件缺失/格式变了）返回 null，让面板显示「未知」而不是猜。
+ */
+function readWorkerEnabledFlag() {
+  if (!RUN_HINDSIGHT_PS1) return null
+  try {
+    const txt = fs.readFileSync(RUN_HINDSIGHT_PS1, 'utf8')
+    const m = txt.match(/HINDSIGHT_API_WORKER_ENABLED\s*=\s*'(true|false)'/i)
+    return m ? m[1].toLowerCase() === 'true' : null
+  } catch {
+    return null
+  }
+}
+
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
@@ -690,7 +713,11 @@ export class MemoryNebulaServer {
    */
   async readWorkerRuntime() {
     const settings = await this.readWorkerSettings()
-    const out = { available: false, active: false, processing: 0, pending: 0, error: null }
+    // workerEnabled：run-hindsight.ps1 里 WORKER_ENABLED 的实际值（true/false/null）。
+    // 与 settings.schedulerEnabled 是两回事：后者是「调度器开不开」，前者是「worker 此刻跑不跑」。
+    // 所有返回路径都带上，面板才能在「调度器开着但 worker 被时段关掉」时显示「已关」。
+    const workerEnabled = readWorkerEnabledFlag()
+    const out = { available: false, active: false, processing: 0, pending: 0, workerEnabled, error: null }
     if (settings.schedulerEnabled === false) return { ...out, settings }
 
     const base = this.cfg.hindsightUrl
@@ -712,7 +739,7 @@ export class MemoryNebulaServer {
         } finally { clearTimeout(timer) }
       }
       const [processing, pending] = await Promise.all([fetchOps('processing'), fetchOps('pending')])
-      return { available: true, active: processing > 0, processing, pending, settings, error: null }
+      return { available: true, active: processing > 0, processing, pending, workerEnabled, settings, error: null }
     } catch (e) {
       return { ...out, settings, error: e.message }
     }

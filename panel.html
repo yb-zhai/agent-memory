@@ -2920,17 +2920,28 @@ async function refreshTopbar() {
       // 四态（2026-11-24）：关(灰常亮)/定时待机(黄闪)/自动待机(绿常亮)/运行(绿闪)
       // auto 档以 /worker-status.active（Hindsight processing>0）为准，
       // 端点不可用时回退为绿闪（旧行为），避免误报空闲。
-      // worker 状态灯 6 态（2026-11-24 重定义）：
-      //   关掉        灰常亮   schedulerEnabled=false
-      //   定时         黄闪     manual 时段外等待
+      // worker 状态灯（2026-11-26 起 7 态）：
+      //   关掉·调度器  灰常亮   schedulerEnabled=false
+      //   关掉·时段    灰常亮   WORKER_ENABLED=false（调度器开着但把 worker 关了）
+      //   定时         黄常亮   manual 时段外等待
       //   auto 运行    绿闪     auto + processing>0
       //   auto 待机    绿常亮   auto + 空闲
       //   manual 运行  粉闪     manual 时段内 + processing>0
       //   manual 待机  粉常亮   manual 时段内 + 空闲
       // 颜色区分模式：绿=auto，粉=manual；闪烁=正在处理，常亮=空闲。
+      //
+      // 2026-11-26 加的第七态「已关」：worker-window.ps1 会在时段外把
+      // run-hindsight.ps1 的 WORKER_ENABLED 改成 false，此时调度器仍开着
+      // （schedulerEnabled=true），但 worker 根本不处理任何队列。
+      // 旧逻辑只看 mode + processing，于是显示「待机」+绿点 —— 用户以为记忆在写，
+      // 实际 retain 全堆在队列里（实测曾积压 15 条、3 小时没落库）。
+      // 以服务端读到的实际值为准；读不到（null）时保持原判定，不猜。
+      const workerEnabled = wrt ? wrt.workerEnabled : null;
       const liveActive = Boolean(wrt && wrt.available && wrt.active);
       let state;
-      if (ws.mode === 'auto') {
+      if (workerEnabled === false) {
+        state = 'off';
+      } else if (ws.mode === 'auto') {
         state = liveActive ? 'auto-running' : 'auto-standby';
       } else if (onMin != null && offMin != null) {
         const inWin = onMin <= offMin
@@ -2940,9 +2951,9 @@ async function refreshTopbar() {
       } else {
         state = liveActive ? 'manual-running' : 'manual-standby';
       }
-      const LABEL = { scheduled: '定时', 'auto-running': '运行中', 'auto-standby': '待机',
+      const LABEL = { off: '已关', scheduled: '定时', 'auto-running': '运行中', 'auto-standby': '待机',
                       'manual-running': '运行中', 'manual-standby': '待机' };
-      const DOT = { scheduled: 'dot amber', 'auto-running': 'dot green', 'auto-standby': 'dot green steady',
+      const DOT = { off: 'dot gray steady', scheduled: 'dot amber', 'auto-running': 'dot green', 'auto-standby': 'dot green steady',
                     'manual-running': 'dot pink', 'manual-standby': 'dot pink steady' };
       if ($('sc-worker')) $('sc-worker').textContent = LABEL[state] || '未知';
       const wd = $('sc-worker-dot');
