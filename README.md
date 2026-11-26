@@ -956,6 +956,21 @@ DSH 客户端里有两个**不同**的入口，能搜到的东西不一样，别
 > 也就是说 `main` 上推了未发版的内容，市场用户装到的就是那一版。
 > 卡片上**不显示版本号**也是同一个原因：GitHub 源的版本要现拉，不像 npm 源那样直接读索引。
 
+**想只装正式版？在 spec 后面加 `#<tag>` 固定版本：**
+
+```powershell
+dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory#v2.0.2
+```
+
+实测（pnpm 11.28.5）：
+
+| 写法 | 解析到 | 锁文件记录的版本 |
+|---|---|---|
+| `github:yb-zhai/agent-memory` | `main` 当时的 HEAD | 随 HEAD 变 |
+| `github:yb-zhai/agent-memory#v2.0.2` | 该 tag 的提交 `2db3f24` | **`2.0.2`** |
+
+所以：**自己装用 tag 更稳**；走市场卡片装到哪一版，取决于 `main` 现在指到哪儿。
+
 ---
 
 ## DSH 集成包
