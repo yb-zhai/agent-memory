@@ -26,7 +26,7 @@
 
 两者不是一一对应的——选「接入方式」不等于选「版本线」。
 
-### 版本线：4 个发布物，版本号各不相同
+### 版本线：5 个发布物，版本号各不相同
 
 | # | 发布物 | 当前版本 | 是什么 | 谁会关心 |
 |---|---|---|---|---|
@@ -34,8 +34,9 @@
 | 2 | **npm 包** `nebula-memory-mcp` | **1.2.1** | 纯 MCP 工具，供任何 MCP 客户端接入 | 用 Claude / Cursor / DSH 当 MCP 客户端的人 |
 | 3 | **MCP Registry 条目** | **1.5.0** | 目录发布记录（指向 npm 包） | MCP 客户端自动发现 |
 | 4 | **MCP 服务自报版本** | **1.2.0** | 握手时返回给客户端的版本号 | 排障时看 |
+| 5 | **WorkBuddy 版** `nebula-workbuddy-mcp` | **1.0.0** | WorkBuddy 专用 MCP：同一套四臂引擎 + WorkBuddy 历史导入 | 用 WorkBuddy 的人 |
 
-> ⚠️ 第 2 与第 4 条目前不一致（1.2.1 vs 1.2.0），不影响功能。详见[版本说明](#版本说明四条独立版本线别混淆)。
+> ⚠️ 第 2 与第 4 条目前不一致（1.2.1 vs 1.2.0），不影响功能。详见[版本说明](#版本说明五条独立版本线别混淆)。
 
 ### 接入方式：6 种用法，按你的身份选
 
@@ -46,7 +47,7 @@
 | **用 DSH（推荐）** | **方式 4** DSH 插件 → [跳到该节](#4-作为-dsh-插件可视化面板) | 见下方「方式 4 的三种装法」 | ✅ | ✅（可选） |
 | 用 DSH，但只想要记忆工具、不要面板 | **方式 3** MCP Server → [跳到该节](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等) | 挂 `nebula-memory-mcp` | ❌ | ❌ |
 | 用 **Claude / Cursor / ChatGPT** 等 | **方式 3** MCP Server | `npx nebula-memory-mcp` | ❌ | ❌ |
-| 用 **WorkBuddy** | **方式 3 的 WorkBuddy 版** `nebula-workbuddy-mcp` → 见下方说明 | `node install.mjs`（**未发布 npm，需本地源码**） | ❌ | ❌ |
+| 用 **WorkBuddy** | **方式 3 的 WorkBuddy 版** `nebula-workbuddy-mcp` → 见下方说明 | `npx -y nebula-workbuddy-mcp`（npm 已发布 **1.0.0**） | ❌ | ❌ |
 | 写 **Node.js** 代码要嵌进去 | **方式 1** 作为库 → [跳到该节](#1-作为库nodejs任何模型可用) | `import { NebulaMemory }` | ❌ | ❌ |
 | 别的**语言 / 进程**要读写，或想裸起面板 | **方式 2** HTTP 服务 → [跳到该节](#2-作为独立-http-服务) | `node server.js` → `:8898` | ✅ | ✅（可选） |
 
@@ -59,7 +60,7 @@
 - 多两个工具：`import_workbuddy`（导入 WorkBuddy 的 `memory.md` + 本地会话 transcript）、
   `workbuddy_info`（探测路径与导入水位）
 
-**接入三步**（在本项目所在目录执行，Windows PowerShell）：
+**本地源码方式的接入三步**（在项目目录执行）：
 
 ```powershell
 # 1. 写进 ~/.workbuddy/mcp.json（自动备份原文件，只动自己那一条）
@@ -75,8 +76,9 @@ node handshake.mjs --query "上次那个问题" --query "我的偏好"
 然后**重启 WorkBuddy**，在「插件 → MCP 服务器」里确认 `nebula-memory` 是绿色，
 工具列表能看到 `recall / remember / recall_context / import_workbuddy`。
 
-> ⚠️ **这个包目前未发布到 npm**（`nebula-workbuddy-mcp` 在 registry 上是 404），
-> 所以上表「入口」写的是本地 `node install.mjs`，不是 `npx`。
+> ✅ **已发布到 npm：`nebula-workbuddy-mcp@1.0.0`**（2026-11-26），所以 `npx -y nebula-workbuddy-mcp` 可直接拉起，
+> WorkBuddy 连接器市场版用的就是这条（`npx` + `runtime.node`，用户无需自己装 Node）。
+> 上面三步的本地源码方式适合要改代码、或想锁定具体版本的人。
 > 它只读 WorkBuddy 的文件、不改 WorkBuddy 任何内容；详见该目录的 `README.md`。
 
 #### 方式 4（DSH 插件）的三种装法——**任选一种，装的是同一个东西**
@@ -671,11 +673,11 @@ async consolidate()      { return this.local.consolidate() }   // 不是 Hindsig
 
 ---
 
-## 版本说明（四条独立版本线，别混淆）
+## 版本说明（五条独立版本线，别混淆）
 
 > 概览表见开头[「先选版本」](#-先选版本别混两个维度)；本节讲**为什么它们不一样**、以及排障时该信哪个。
 
-本项目对外有**四条版本线**，**各自独立是设计如此**，不要以为它们应该相等：
+本项目对外有**五条版本线**，**各自独立是设计如此**，不要以为它们应该相等：
 
 | # | 版本线 | 当前 | 代表什么 | 谁在读 |
 |---|---|---|---|---|
@@ -683,8 +685,9 @@ async consolidate()      { return this.local.consolidate() }   // 不是 Hindsig
 | 2 | **npm 包** `nebula-memory-mcp` | **1.2.1** | 纯 stdio MCP 工具（只有 `mcp-server.mjs`），给 Claude / Cursor / ChatGPT 等 MCP 客户端接入；**DSH 也能作为 MCP 客户端挂载它** | npm / npx 用户、MCP 客户端 |
 | 3 | **MCP Registry 条目** `io.github.yb-zhai/nebula-memory` | **1.5.0** | Registry 上的发布记录，指向某一版 npm 包 | MCP 客户端发现 |
 | 4 | **MCP 服务自报版本**（`server.json` 里的 `version` / `mcp-server.mjs` 的 `version`） | **1.2.0** | MCP `initialize` 握手时返回给客户端的版本号 | 与你直连的 MCP 客户端 |
+| 5 | **WorkBuddy 版** `nebula-workbuddy-mcp` | **1.0.0** | 同一套四臂引擎，另加两个 WorkBuddy 专用工具（导入其历史会话、探测路径），记忆库独立放在 `~/.workbuddy/nebula-memory` | WorkBuddy 客户端（npx 拉起） |
 
-**为什么不同**：四者内容与用途根本不同——DSH 插件带面板和 HTTP 服务；npm 包只有一个 MCP 入口文件；Registry 条目是发布记录；自报版本是运行时握手字段。强行统一版本号只会让「同名不同物」更混乱。
+**为什么不同**：五者内容与用途根本不同——DSH 插件带面板和 HTTP 服务；npm 包只有一个 MCP 入口文件；Registry 条目是发布记录；自报版本是运行时握手字段。强行统一版本号只会让「同名不同物」更混乱。
 
 > ⚠️ 第 2 与第 4 条目前**不一致**（npm 1.2.1 vs 自报 1.2.0）。这不影响功能——客户端不会因版本号不匹配拒绝连接——但如果你按版本号排查问题，要以 npm 包为准。
 
@@ -1051,7 +1054,7 @@ dsh plugin --profile <你的profile> add github:yb-zhai/agent-memory#v2.0.2
 > MCP 版能接 Claude、Cursor、ChatGPT、Grok、Gemini、Windsurf、Cline 等所有支持 MCP 的客户端，
 > DSH 也能作为 MCP 客户端挂载它
 > （见[接入方式 3](#3-作为-mcp-server接入-claude--cursor--chatgpt--grok--gemini-等)），但只走本地四臂。
-> 版本号对应关系见[版本说明](#版本说明四条独立版本线别混淆)。
+> 版本号对应关系见[版本说明](#版本说明五条独立版本线别混淆)。
 
 ### 引擎 B 选型：三个可配的部件
 
