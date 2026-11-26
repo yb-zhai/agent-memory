@@ -84,9 +84,9 @@
     <span class="sc-item"><span id="sc-quota-dot" class="dot"></span><span class="sc-k">额度</span><span id="sc-quota" class="sc-v">—</span></span>
     <span class="sc-item"><span id="sc-worker-dot" class="dot"></span><span class="sc-k">worker</span><span id="sc-worker" class="sc-v">—</span></span>
     <span class="sc-item"><span id="sc-apc-dot" class="dot"></span><span class="sc-k">Hindsight</span><span id="sc-apc" class="sc-v">—</span></span>
-    <span class="cfg-wrap" id="ws-entry" style="display:none"><button id="ws-btn" class="tb-btn">⚙ worker 调度</button>
+    <span class="cfg-wrap" id="ws-entry"><button id="ws-btn" class="tb-btn">⚙ worker 调度</button>
       <div id="ws-panel">
-        <div class="row"><label style="min-width:0;flex:1">完全停用后台 worker</label><input id="ws-disable" type="checkbox" /></div>
+        <div class="row"><label style="min-width:0;flex:1" title="勾选=停用调度器（worker 状态冻结）；取消勾选=交回调度器按时段/积压规则开关，不等于立刻开跑">完全停用后台 worker 调度</label><input id="ws-disable" type="checkbox" /></div>
         <div id="ws-schedule-body">
           <div class="seg"><button id="ws-manual" class="active">手动</button><button id="ws-auto">自动</button></div>
           <div class="row"><label>时段</label><input id="ws-on" type="text" value="23:00" /> — <input id="ws-off" type="text" value="08:00" /></div>
@@ -2904,6 +2904,9 @@ async function refreshTopbar() {
     // 用户选「手动时段」时，schedulerEnabled=true 只表示已启用；当前是否真在
     // 运行时段要看 on/off。auto 档脱离时段约束，视为随时可能运行。
     S.workerEnabled = ws && ws.available !== false ? (ws.schedulerEnabled !== false) : null;
+    // 实时状态留给 renderWs 用：它要据此解释「调度器接管了但 worker 仍是关的」
+    // 到底是时段外还是积压未达阈值，否则用户只看得到「已关」两个字。
+    S.workerLive = wrt || null;
     if (!ws || ws.available === false) {
       if ($('sc-worker')) $('sc-worker').textContent = '未知';
       setDot('sc-worker-dot', 'gray');
@@ -2991,12 +2994,15 @@ refreshTopbar();
 setInterval(refreshTopbar, 60000);
 
 // ── worker 调度设置面板 ──
-let wsSettings = { available:false, schedulerEnabled:null, mode:'manual', on:'23:00', off:'08:00', autoThreshold:20 };
+// available 初值用 null（未知）而不是 false：入口只在服务端明确说不可用时才隐藏，
+// 「未知」先显示 —— 藏起来比误显示更糟（fetch 失败会让人以为面板没了）。
+let wsSettings = { available:null, schedulerEnabled:null, mode:'manual', on:'23:00', off:'08:00', autoThreshold:20 };
 function renderWs() {
-  // 只有服务端确认「这套 Hindsight 能被安全操作」才显示入口。
-  // 分发包不带 worker-window.ps1 / run-hindsight.ps1|.vbs，所以用户那边整个下拉会隐藏，
-  // 而不是留一个点了报错的按钮。注意必须是 === true：字段缺失时不能当成可用。
-  const available = wsSettings.available === true;
+  // 入口是否显示：**只在服务端明确说不可用时才隐藏**（available === false）。
+  // 未知（null/字段缺失）先显示 —— 藏起来比误显示更糟：
+  // 用户点一次停用会触发 Hindsight 重启，这期间 fetch 可能失败，
+  // 用「未知就隐藏」的策略会让人以为面板没了（2026-11-26 实际踩过两次）。
+  const available = wsSettings.available !== false;
   const entry = $('ws-entry');
   if (entry) entry.style.display = available ? '' : 'none';
   if (!available) return;
@@ -3013,13 +3019,46 @@ function renderWs() {
   if ($('ws-warn')) $('ws-warn').style.display = (m === 'auto') ? 'block' : 'none';
   const warn = $('ws-disable-warn');
   if (warn) {
-    if (!available) { warn.style.display='block'; warn.textContent='worker 状态未知：请配置 MEMORY_NEBULA_HINDSIGHT_DIR 后重启服务。'; }
-    else if (!enabled) { warn.style.display='block'; warn.textContent='已停用后台 worker：不再调度/烧钱；手动召回仍可用。'; }
-    else warn.style.display='none';
+    // 三种情况要分开说，否则「取消勾选」会被误读成「worker 立刻开跑」：
+    //   !enabled           → 调度器本身被停用（谁也管不了 worker）
+    //   enabled + we/false → 调度器接管中，但按规则此刻就是关（时段外/积压未达阈值）
+    //   其他               → 正常
+    const live = S.workerLive;
+    const we = live ? live.workerEnabled : null;
+    const pend = live && typeof live.pending === 'number' ? live.pending : null;
+    if (!enabled) {
+      warn.style.display = 'block';
+      warn.textContent = '已停用后台 worker 调度：不再按规则开关 worker（当前状态保持不动）；手动召回仍可用。';
+    } else if (we === false) {
+      const on = wsSettings.on || '23:00';
+      const off = wsSettings.off || '08:00';
+      const thr = wsSettings.autoThreshold || 40;
+      warn.style.display = 'block';
+      warn.textContent = `调度器已接管，但按当前规则 worker 此刻是关的：现在在时段外（${on}–${off}），`
+        + (pend === null ? '' : `积压 ${pend} 条未达阈值 ${thr}，`)
+        + `所以不处理新记忆。到 ${on} 会自动开启。想立刻处理，可把时段改成包含当前时间，或调低阈值。`;
+    } else {
+      warn.style.display = 'none';
+    }
   }
 }
-async function loadWs() {
-  try { const r = await fetch('/worker-settings'); if (r.ok) { const j = await r.json(); if (j && j.mode) wsSettings = j; } } catch {}
+// 入口 #ws-entry 默认 display:none，只有成功拿到配置才会显示。
+// 所以这里失败要重试：点「完全停用」会触发 worker-window.ps1 -Mode Off，
+// 它要杀 Hindsight 进程再重启，这期间 fetch 可能失败一次；若直接 renderWs()，
+// 用的还是初始值 available:false，入口就被永久藏起来，只能刷新页面才恢复
+// （2026-11-26 实际发生过：用户点停用后「面板没了」，重进才回来）。
+async function loadWs(retry = 2) {
+  try {
+    const r = await fetch('/worker-settings');
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.mode) { wsSettings = j; renderWs(); return; }
+    }
+  } catch { /* 落到下面的重试 */ }
+  if (retry > 0) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return loadWs(retry - 1);
+  }
   renderWs();
 }
 loadWs();
