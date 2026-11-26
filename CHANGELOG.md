@@ -10,6 +10,16 @@
 Docs / Chore / Test / Build / CI 类提交也会列出，便于追溯改动来源。
 
 
+## [2.0.4](https://github.com/yb-zhai/agent-memory/compare/v2.0.3...v2.0.4) (2026-11-26)
+
+### Fixed
+
+* worker 入口瞬时失败不再消失，并说明「已关」的具体原因 ([228d4c8](https://github.com/yb-zhai/agent-memory/commit/228d4c8f69102a08a2c7fa8cf3e88cf298ac81d3))
+
+### Docs
+
+* 版本表同步到 2.0.3 ([25adc44](https://github.com/yb-zhai/agent-memory/commit/25adc44cb9926f1931822b3c7d868072d3c0bf60))
+
 ## [2.0.3](https://github.com/yb-zhai/agent-memory/compare/v2.0.2...v2.0.3) (2026-11-26)
 
 ### Fixed
